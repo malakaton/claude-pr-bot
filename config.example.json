@@ -1,0 +1,35 @@
+{
+  "workspace": "deporvillage",
+  "repos_root": "~/DeporVillage",
+  "repo_paths": {},
+  "extra_repos": [],
+  "trigger": "@claude",
+  "mode": "auto",
+  "claude_bin": "claude",
+  "model": "",
+  "max_turns": 30,
+  "timeout_sec": 900,
+  "lookback_minutes": 10,
+  "worktrees_dir": "",
+  "co_author": "Claude <noreply@anthropic.com>",
+  "allowed_tools": [
+    "Read",
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "Bash(git diff:*)",
+    "Bash(git status:*)",
+    "Bash(git log:*)",
+    "Bash(git show:*)"
+  ],
+  "extra_allowed_tools": {},
+  "disallowed_tools": [
+    "Bash(git push:*)",
+    "Bash(git commit:*)",
+    "Bash(git reset:*)",
+    "WebFetch",
+    "WebSearch"
+  ]
+}

@@ -1,0 +1,7 @@
+.env
+config.json
+state.json
+bot.log
+.lock
+worktrees/
+__pycache__/
