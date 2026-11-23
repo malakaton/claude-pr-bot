@@ -9,7 +9,7 @@ export CLAUDE_PLUGIN_ROOT="$DIR" CLAUDE_PLUGIN_DATA="$DATA"
 bash "$DIR/scripts/sync.sh" sync
 if [ ! -s "$DATA/.env" ]; then
   (umask 077; cp "$DIR/.env.example" "$DATA/.env")
-  echo "Rellena BB_EMAIL y BB_API_TOKEN en $DATA/.env y revisa $DATA/config.json; luego vuelve a ejecutar ./install.sh"
+  echo "Rellena BB_EMAIL y BB_API_TOKEN en $DATA/.env, pon tu \"workspace\" y \"repos_root\" en $DATA/config.json y vuelve a ejecutar ./install.sh"
   exit 0
 fi
 pr-autofix whoami

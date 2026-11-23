@@ -473,6 +473,8 @@ def main():
     if not os.path.exists(CONFIG_PATH):
         sys.exit("Falta %s (ejecuta /bitbucket-pr-autofix:setup o copia config.example.json)" % CONFIG_PATH)
     CFG = json.load(open(CONFIG_PATH))
+    if not CFG.get("workspace"):
+        sys.exit("Configura el workspace de Bitbucket (/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools o \"workspace\" en %s)" % CONFIG_PATH)
     for k in ("repos_root", "worktrees_dir", "claude_bin"):
         CFG[k] = os.path.expanduser(CFG.get(k) or "")
     CFG["claude_bin"] = shutil.which(CFG["claude_bin"] or "claude") or CFG["claude_bin"]

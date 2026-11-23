@@ -56,13 +56,14 @@ EOF
   if ! cmp -s "$WRAPPER.tmp" "$WRAPPER" 2>/dev/null; then mv "$WRAPPER.tmp" "$WRAPPER"; chmod 755 "$WRAPPER"; else rm -f "$WRAPPER.tmp"; fi
 
   # userConfig -> config.json / .env
-  local email token repos mode
-  email="$(opt bb_email)"; token="$(opt bb_api_token)"; repos="$(opt repos_root)"; mode="$(opt mode)"
-  if [ -n "$repos$mode" ]; then
-    python3 - "$DATA/config.json" "$repos" "$mode" <<'PY'
+  local email token repos mode ws
+  email="$(opt bb_email)"; token="$(opt bb_api_token)"; repos="$(opt repos_root)"; mode="$(opt mode)"; ws="$(opt workspace)"
+  if [ -n "$repos$mode$ws" ]; then
+    python3 - "$DATA/config.json" "$repos" "$mode" "$ws" <<'PY'
 import json, sys
-p, repos, mode = sys.argv[1:]
+p, repos, mode, ws = sys.argv[1:]
 c = json.load(open(p)); old = dict(c)
+if ws: c["workspace"] = ws
 if repos: c["repos_root"] = repos
 if mode in ("auto", "review"): c["mode"] = mode
 if c != old: json.dump(c, open(p, "w"), indent=2, ensure_ascii=False)

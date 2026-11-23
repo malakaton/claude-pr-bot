@@ -1,10 +1,25 @@
 {
   "name": "bitbucket-pr-autofix",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Escribe @claude en un comentario de tu PR de Bitbucket y Claude aplica el fix, hace commit y push (o lo deja para que lo revises con --review).",
-  "author": { "name": "Manel Bermúdez" },
-  "keywords": ["bitbucket", "pull-request", "code-review", "automation"],
+  "author": {
+    "name": "Manel Bermúdez"
+  },
+  "repository": "https://github.com/malakaton/claude-pr-bot",
+  "license": "MIT",
+  "keywords": [
+    "bitbucket",
+    "pull-request",
+    "code-review",
+    "automation"
+  ],
   "userConfig": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace de Bitbucket",
+      "description": "La parte <workspace> de bitbucket.org/<workspace>/<repo>.",
+      "required": true
+    },
     "bb_email": {
       "type": "string",
       "title": "Email de Atlassian",
@@ -22,13 +37,16 @@
       "type": "directory",
       "title": "Carpeta de repos",
       "description": "Carpeta donde tienes clonados los repos de Bitbucket.",
-      "default": "~/DeporVillage"
+      "default": "~/code"
     },
     "mode": {
       "type": "string",
       "title": "Modo por defecto",
       "description": "auto = commit + push directo; review = revisas tú antes del commit y push.",
-      "options": ["auto", "review"],
+      "options": [
+        "auto",
+        "review"
+      ],
       "default": "auto"
     }
   }

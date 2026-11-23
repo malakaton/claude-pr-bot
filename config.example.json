@@ -1,6 +1,6 @@
 {
-  "workspace": "deporvillage",
-  "repos_root": "~/DeporVillage",
+  "workspace": "",
+  "repos_root": "~/code",
   "repo_paths": {},
   "extra_repos": [],
   "trigger": "@claude",

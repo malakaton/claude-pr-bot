@@ -15,7 +15,7 @@ Sigue estos pasos en orden, ejecutando los comandos con Bash. Informa brevemente
 3. **Migración de instalación manual**: si existe `~/claude-pr-bot/state.json` o el unit `~/.config/systemd/user/claude-pr-bot.timer` (instalación previa sin plugin), ejecuta `pr-autofix migrate ~/claude-pr-bot` y dilo al usuario.
 
 4. **Credenciales**: `pr-autofix whoami`.
-   - Si falla por falta de `.env` o HTTP 401/403, explica que debe configurar el email y el API token con `/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools` (el token se guarda en el keyring del sistema; nunca lo pidas por el chat). Scopes: `read:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`. Después `/reload-plugins` y repetir setup. Para aquí.
+   - Si falla porque falta el workspace, `.env` o por HTTP 401/403, explica que debe configurar workspace, email y API token con `/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools` (el token se guarda en el keyring del sistema; nunca lo pidas por el chat). Scopes: `read:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`. Después `/reload-plugins` y repetir setup. Para aquí.
 
 5. **Requisitos**: comprueba `command -v git python3 claude systemctl` y que `ssh -T git@bitbucket.org` autentica (código de salida 0 o mensaje "authenticated"). Si algo falla, explica cómo arreglarlo.
 

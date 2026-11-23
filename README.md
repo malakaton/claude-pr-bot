@@ -1,6 +1,8 @@
 # bitbucket-pr-autofix
 
-Plugin de **Claude Code** que permite pedir cambios a Claude desde los comentarios de una Pull Request de Bitbucket.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Plugin de **Claude Code** que permite pedir cambios a Claude desde los comentarios de una Pull Request de **Bitbucket Cloud**. Funciona con cualquier workspace.
 
 Escribes en tu PR un comentario como:
 
@@ -10,7 +12,9 @@ Escribes en tu PR un comentario como:
 
 En menos de 2 minutos, Claude aplica el cambio en la rama de la PR, hace commit y push y responde en el hilo del comentario con un resumen y el enlace al commit. Si prefieres revisarlo antes, usa `@claude --review …`.
 
-No necesita permisos de admin en Bitbucket (ni webhooks ni Pipelines). Todo se ejecuta **en tu máquina**: un timer de systemd consulta la API de Bitbucket con tu token personal.
+No necesita permisos de admin en Bitbucket (ni webhooks ni Pipelines) ni ser owner de los repos: basta con poder comentar y hacer push en tus PRs. Todo se ejecuta **en tu máquina**: un timer de systemd consulta la API de Bitbucket con tu token personal.
+
+> **Uso en equipo**: cada persona instala el plugin con su propio token. Solo disparan los comentarios de quien lo tiene instalado, y cada fix se ejecuta en la máquina de esa persona.
 
 ---
 
@@ -21,7 +25,7 @@ No necesita permisos de admin en Bitbucket (ni webhooks ni Pipelines). Todo se e
 - Linux con systemd (sesión de usuario).
 - `python3` 3.9 o superior y `git`, con acceso SSH a Bitbucket (`ssh -T git@bitbucket.org` debe funcionar; el push usa tu clave).
 - [Claude Code](https://code.claude.com) instalado y con sesión iniciada.
-- Los repos clonados bajo una misma carpeta, por ejemplo `~/DeporVillage/<repo>`.
+- Los repos clonados bajo una misma carpeta, por ejemplo `~/code/<repo>`.
 - Un **API token de Atlassian**:
   1. Entra en https://id.atlassian.com/manage-profile/security/api-tokens.
   2. Pulsa **Create API token with scopes** y elige la app **Bitbucket**.
@@ -30,6 +34,8 @@ No necesita permisos de admin en Bitbucket (ni webhooks ni Pipelines). Todo se e
   > Las App Passwords de Bitbucket están deprecadas; usa un API token.
 
 ### Pasos
+
+No hace falta clonar este repo ni tener cuenta de GitHub: el repo es público y Claude Code lo descarga solo.
 
 Dentro de Claude Code:
 
@@ -42,9 +48,10 @@ Al instalarlo, Claude Code te pide:
 
 | Opción | Valor |
 |---|---|
+| Workspace de Bitbucket | la parte `<workspace>` de `bitbucket.org/<workspace>/<repo>`, por ejemplo `mi-empresa` |
 | Email de Atlassian | el email de tu cuenta |
 | API token de Bitbucket | el token creado arriba (se guarda en el keyring del sistema, no pasa por el chat) |
-| Carpeta de repos | por defecto `~/DeporVillage` |
+| Carpeta de repos | donde tienes clonados los repos (por defecto `~/code`) |
 | Modo por defecto | `auto` (commit + push directo) o `review` (revisas tú antes) |
 
 Después:
@@ -62,8 +69,6 @@ Después:
 - hace una pasada de prueba.
 
 A partir de ahí el bot arranca solo cada vez que inicias sesión.
-
-> Si el repo del plugin es privado, necesitas acceso de lectura a él y git tiene que poder clonarlo sin pedir credenciales.
 
 Para cambiar el token o las opciones: `/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools`, luego `/reload-plugins`.
 Para actualizar: `/plugin update bitbucket-pr-autofix@bitbucket-pr-tools`. El timer usa la versión nueva en la siguiente sesión, sin reinstalar nada.
@@ -168,8 +173,8 @@ Las opciones del plugin cubren lo habitual. Para lo demás, edita `config.json` 
 
 | Clave | Descripción | Por defecto |
 |---|---|---|
-| `workspace` | Workspace de Bitbucket | `deporvillage` |
-| `repos_root` | Carpeta con tus clones. El bot asocia cada repo por el remote `origin`. | `~/DeporVillage` |
+| `workspace` | Workspace de Bitbucket (lo fija la opción del plugin) | — |
+| `repos_root` | Carpeta con tus clones. El bot asocia cada repo por el remote `origin`. | `~/code` |
 | `repo_paths` | Rutas manuales `{ "slug": "~/ruta" }` si un repo está en otra carpeta | `{}` |
 | `extra_repos` | Repos en los que vigilar también PRs que **no** son tuyas (más llamadas a la API) | `[]` |
 | `mode` | `auto` o `review` (lo sobrescribe la opción del plugin) | `auto` |
@@ -185,7 +190,7 @@ Ejemplo para dejar que Claude ejecute los tests de un repo:
 
 ```json
 "extra_allowed_tools": {
-  "customer-service": ["Bash(make test:*)", "Bash(vendor/bin/phpunit:*)"]
+  "my-service": ["Bash(make test:*)", "Bash(npm test:*)"]
 }
 ```
 
@@ -208,7 +213,7 @@ journalctl --user -u bitbucket-pr-autofix -f   # logs de systemd
 
 ```bash
 git clone https://github.com/malakaton/claude-pr-bot.git ~/claude-pr-bot && cd ~/claude-pr-bot
-./install.sh      # crea ~/.bitbucket-pr-autofix/.env → rellénalo
+./install.sh      # crea ~/.bitbucket-pr-autofix/.env y config.json → rellena token, workspace y repos_root
 ./install.sh      # valida credenciales y activa el timer
 ```
 
@@ -241,3 +246,25 @@ scripts/sync.sh                  # sincroniza datos, units y genera `pr-autofix`
 systemd/*.tmpl                   # plantillas de service y timer (cada 2 min)
 config.example.json  .env.example  install.sh
 ```
+
+---
+
+## Contribuir
+
+Issues y pull requests son bienvenidos en [github.com/malakaton/claude-pr-bot](https://github.com/malakaton/claude-pr-bot).
+
+Antes de enviar cambios:
+
+```bash
+claude plugin validate .            # valida manifiestos, skills y hooks
+claude --plugin-dir .               # prueba el plugin en local sin instalarlo
+python3 -m py_compile lib/bot.py && bash -n scripts/sync.sh install.sh
+```
+
+Si cambias el comportamiento, sube `version` en `.claude-plugin/plugin.json` para que `/plugin update` lo detecte.
+
+---
+
+## Licencia
+
+[MIT](LICENSE)
