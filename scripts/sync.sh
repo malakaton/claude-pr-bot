@@ -10,6 +10,7 @@
 # Dentro de Claude Code (hook) usa CLAUDE_PLUGIN_ROOT/CLAUDE_PLUGIN_DATA. Fuera, el wrapper
 # ~/.local/bin/pr-autofix las fija a partir de ~/.config/bitbucket-pr-autofix/paths.
 set -euo pipefail
+trap 'echo "bitbucket-pr-autofix sync.sh: error (código $?) en la línea $LINENO" >&2' ERR
 
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 DATA="${CLAUDE_PLUGIN_DATA:-$HOME/.bitbucket-pr-autofix}"
@@ -23,7 +24,7 @@ opt() {  # valor de userConfig (acepta CLAUDE_PLUGIN_OPTION_KEY o _key)
 }
 
 stamp() {  # huella de versión + opciones; solo bash/coreutils para ser rápido
-  { printf '%s\n' "$ROOT"; env | grep '^CLAUDE_PLUGIN_OPTION_' | sort; } | sha256sum | cut -d' ' -f1
+  { printf '%s\n' "$ROOT"; env | grep '^CLAUDE_PLUGIN_OPTION_' | sort || true; } | sha256sum | cut -d' ' -f1
 }
 
 sync_files() {
