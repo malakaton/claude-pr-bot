@@ -1,0 +1,14 @@
+{
+  "name": "bitbucket-pr-tools",
+  "owner": {
+    "name": "Manel Bermúdez"
+  },
+  "plugins": [
+    {
+      "name": "bitbucket-pr-autofix",
+      "source": "./",
+      "description": "Bot @claude para PRs de Bitbucket: aplica fixes pedidos en comentarios."
+    }
+  ],
+  "description": "Herramientas de Claude Code para PRs de Bitbucket"
+}

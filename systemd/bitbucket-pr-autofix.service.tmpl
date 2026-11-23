@@ -1,0 +1,11 @@
+# managed-by: bitbucket-pr-autofix plugin
+[Unit]
+Description=bitbucket-pr-autofix (polling Bitbucket @claude)
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DATA@
+Environment=PR_AUTOFIX_HOME=@DATA@
+Environment=PATH=@PATH@
+ExecStart=/usr/bin/env python3 @DATA@/bot.py run
+TimeoutStartSec=1800

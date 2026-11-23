@@ -23,7 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.expanduser(os.environ.get("PR_AUTOFIX_HOME") or os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE, "config.json")
 STATE_PATH = os.path.join(BASE, "state.json")
 ENV_PATH = os.path.join(BASE, ".env")
@@ -90,7 +90,7 @@ def sh(args, cwd=None, check=True, timeout=None):
 
 def notify(title, body):
     if shutil.which("notify-send"):
-        subprocess.run(["notify-send", "-a", "claude-pr-bot", title, body], capture_output=True)
+        subprocess.run(["notify-send", "-a", "bitbucket-pr-autofix", title, body], capture_output=True)
 
 
 # ---------------------------------------------------------------- Bitbucket API
@@ -471,7 +471,7 @@ def cmd_forget(cid):
 def main():
     global CFG, AUTH, TRIGGER_RE
     if not os.path.exists(CONFIG_PATH):
-        sys.exit("Falta %s (copia config.example.json)" % CONFIG_PATH)
+        sys.exit("Falta %s (ejecuta /bitbucket-pr-autofix:setup o copia config.example.json)" % CONFIG_PATH)
     CFG = json.load(open(CONFIG_PATH))
     for k in ("repos_root", "worktrees_dir", "claude_bin"):
         CFG[k] = os.path.expanduser(CFG.get(k) or "")

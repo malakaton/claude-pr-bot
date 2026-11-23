@@ -1,9 +1,0 @@
-[Unit]
-Description=Claude PR bot (polling Bitbucket @claude)
-
-[Service]
-Type=oneshot
-WorkingDirectory=%h/claude-pr-bot
-Environment=PATH=%h/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/bin/env python3 %h/claude-pr-bot/bot.py run
-TimeoutStartSec=1800
