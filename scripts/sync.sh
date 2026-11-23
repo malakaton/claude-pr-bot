@@ -2,6 +2,7 @@
 # bitbucket-pr-autofix: sincroniza el bot a un directorio de datos estable y gestiona los units de systemd.
 #
 #   sync.sh                 sincroniza (lo ejecuta el hook SessionStart del plugin; silencioso)
+#   sync.sh quick           sincroniza solo si cambió la versión del plugin o sus opciones (hook UserPromptSubmit)
 #   sync.sh install-units   instala/actualiza service+timer y los activa
 #   sync.sh remove-units    desactiva y borra service+timer
 #   sync.sh migrate [dir]   importa state/config/.env de una instalación manual (por defecto ~/claude-pr-bot)
@@ -19,6 +20,10 @@ WRAPPER="$HOME/.local/bin/pr-autofix"
 opt() {  # valor de userConfig (acepta CLAUDE_PLUGIN_OPTION_KEY o _key)
   local up="CLAUDE_PLUGIN_OPTION_${1^^}" lo="CLAUDE_PLUGIN_OPTION_$1"
   printf '%s' "${!up:-${!lo:-}}"
+}
+
+stamp() {  # huella de versión + opciones; solo bash/coreutils para ser rápido
+  { printf '%s\n' "$ROOT"; env | grep '^CLAUDE_PLUGIN_OPTION_' | sort; } | sha256sum | cut -d' ' -f1
 }
 
 sync_files() {
@@ -77,6 +82,8 @@ PY
   fi
   [ -f "$DATA/.env" ] && chmod 600 "$DATA/.env"
 
+  stamp > "$DATA/.sync-stamp"; chmod 600 "$DATA/.sync-stamp"
+
   # si los units son nuestros, mantenerlos al día con la ruta actual
   if grep -qs "managed-by: bitbucket-pr-autofix plugin" "$UNIT_DIR/bitbucket-pr-autofix.service"; then
     render_units quiet
@@ -102,6 +109,9 @@ render_units() {
 
 case "${1:-sync}" in
   sync) sync_files ;;
+  quick)
+    if [ -x "$WRAPPER" ] && [ -f "$DATA/.sync-stamp" ] && [ "$(stamp)" = "$(cat "$DATA/.sync-stamp")" ]; then exit 0; fi
+    sync_files ;;
   install-units)
     sync_files
     [ -f "$DATA/.env" ] || { echo "Falta $DATA/.env: configura bb_email y bb_api_token con /plugin configure"; exit 1; }
@@ -137,5 +147,5 @@ PY
     if [ -d "$OLD/worktrees" ] && [ -n "$(ls -A "$OLD/worktrees" 2>/dev/null)" ]; then
       echo "AVISO: hay worktrees pendientes en $OLD/worktrees (state.json sigue apuntando ahí; apruébalos/recházalos con normalidad)"
     fi ;;
-  *) echo "uso: sync.sh [sync|install-units|remove-units|migrate [dir]]"; exit 2 ;;
+  *) echo "uso: sync.sh [sync|quick|install-units|remove-units|migrate [dir]]"; exit 2 ;;
 esac

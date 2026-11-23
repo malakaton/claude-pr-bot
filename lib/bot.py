@@ -480,6 +480,10 @@ def main():
     CFG["claude_bin"] = shutil.which(CFG["claude_bin"] or "claude") or CFG["claude_bin"]
     CFG["worktrees_dir"] = CFG["worktrees_dir"] or os.path.join(BASE, "worktrees")
     CFG["repo_paths"] = {k: os.path.expanduser(v) for k, v in CFG.get("repo_paths", {}).items()}
+    if not os.path.isdir(CFG["repos_root"]):
+        sys.exit("La carpeta de repos %r no existe (ojo con mayúsculas/minúsculas). Corrige la opción "
+                 "'Carpeta de repos' con /plugin configure bitbucket-pr-autofix@bitbucket-pr-tools "
+                 "o 'repos_root' en %s" % (CFG["repos_root"], CONFIG_PATH))
     env = load_env()
     AUTH = "Basic " + base64.b64encode(("%s:%s" % (env["BB_EMAIL"], env["BB_API_TOKEN"])).encode()).decode()
     TRIGGER_RE = re.compile(r"(?<![\w`])%s\b" % re.escape(CFG["trigger"]), re.I)

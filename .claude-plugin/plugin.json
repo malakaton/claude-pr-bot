@@ -1,6 +1,6 @@
 {
   "name": "bitbucket-pr-autofix",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Escribe @claude en un comentario de tu PR de Bitbucket y Claude aplica el fix, hace commit y push (o lo deja para que lo revises con --review).",
   "author": {
     "name": "Manel Bermúdez"

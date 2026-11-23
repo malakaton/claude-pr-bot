@@ -44,6 +44,8 @@ Dentro de Claude Code:
 /plugin install bitbucket-pr-autofix@bitbucket-pr-tools
 ```
 
+Cuando pregunte el ámbito, elige **user** (para ti en todos los proyectos). Con `project`, los cambios de configuración y las actualizaciones solo se aplican al usar Claude Code en esa carpeta.
+
 Al instalarlo, Claude Code te pide:
 
 | Opción | Valor |
@@ -51,15 +53,17 @@ Al instalarlo, Claude Code te pide:
 | Workspace de Bitbucket | la parte `<workspace>` de `bitbucket.org/<workspace>/<repo>`, por ejemplo `mi-empresa` |
 | Email de Atlassian | el email de tu cuenta |
 | API token de Bitbucket | el token creado arriba (se guarda en el keyring del sistema, no pasa por el chat) |
-| Carpeta de repos | donde tienes clonados los repos (por defecto `~/code`) |
+| Carpeta de repos | donde tienes clonados los repos (por defecto `~/code`). Escríbela exactamente igual, mayúsculas incluidas: `~/MiEmpresa` y `~/Miempresa` son carpetas distintas |
 | Modo por defecto | `auto` (commit + push directo) o `review` (revisas tú antes) |
 
-Después:
+Después, en la misma sesión (no hace falta reiniciar):
 
 ```
 /reload-plugins
 /bitbucket-pr-autofix:setup
 ```
+
+> Ejecuta `setup` fuera de plan mode: en plan mode Claude no puede instalar nada.
 
 `setup` hace lo siguiente:
 
@@ -150,7 +154,7 @@ Si quieres revisar siempre, elige el modo `review` en la configuración del plug
 5. Si hay cambios, el script (no Claude) hace commit y push a la rama de la PR y responde en el hilo. Con `--review`, se para antes del commit.
 6. Guarda el comentario como procesado en `state.json` y borra el worktree.
 
-Arquitectura del plugin: un plugin no puede tener procesos en segundo plano, así que el polling lo hace un **timer de systemd de usuario** (`bitbucket-pr-autofix.timer`). Ese timer ejecuta una copia del bot guardada en el directorio de datos del plugin (`~/.claude/plugins/data/…`), que se conserva entre actualizaciones. Un hook `SessionStart` del plugin mantiene esa copia y las credenciales al día, y genera el comando `~/.local/bin/pr-autofix`.
+Arquitectura del plugin: un plugin no puede tener procesos en segundo plano, así que el polling lo hace un **timer de systemd de usuario** (`bitbucket-pr-autofix.timer`). Ese timer ejecuta una copia del bot guardada en el directorio de datos del plugin (`~/.claude/plugins/data/…`), que se conserva entre actualizaciones. Los hooks `SessionStart` y `UserPromptSubmit` del plugin mantienen esa copia y las credenciales al día (el segundo solo actúa si cambió la versión o las opciones), y genera el comando `~/.local/bin/pr-autofix`.
 
 ### Seguridad
 
@@ -225,10 +229,10 @@ Se usa igual, con el comando `pr-autofix`.
 
 - **Solo PRs propias**: por defecto solo vigila las PRs de las que eres autor. Para otras, añade el repo a `extra_repos`.
 - **PRs desde fork**: no están soportadas.
-- **"No encuentro clon local"**: el repo no está bajo la carpeta de repos. Clónalo o añádelo en `repo_paths`.
+- **"No encuentro clon local"** o **"La carpeta de repos no existe"**: revisa la opción *Carpeta de repos* (`/plugin configure`), incluidas mayúsculas y minúsculas. Si es un repo concreto, clónalo ahí o añádelo en `repo_paths`.
 - **Error en el push** (non-fast-forward): el bot hace fetch, un rebase y reintenta una vez. Si vuelve a fallar, responde con el error.
 - **Un comentario se quedó en `running`** (por ejemplo, apagaste a mitad): ejecuta `pr-autofix forget <cid>` para que se reprocese.
-- **`pr-autofix` no existe tras instalar**: ejecuta `/reload-plugins` o reinicia Claude Code para que corra el hook del plugin. Comprueba también que `~/.local/bin` está en tu `PATH`.
+- **`pr-autofix` no existe tras instalar**: ejecuta `/reload-plugins` y vuelve a lanzar `setup`; el hook del plugin crea el comando en tu siguiente mensaje. Si aún no aparece, reinicia Claude Code. Comprueba también que `~/.local/bin` está en tu `PATH`.
 - **Coste**: cada ejecución consume uso de Claude (unos 0,10–0,50 $ en cambios pequeños). Consulta el acumulado con `/bitbucket-pr-autofix:status`.
 - **Rate limit de Bitbucket**: unas 1000 peticiones/hora por usuario. Con pocas PRs abiertas sobra margen.
 
@@ -239,7 +243,7 @@ Se usa igual, con el comando `pr-autofix`.
 ```
 .claude-plugin/plugin.json       # manifiesto del plugin (+ opciones de usuario)
 .claude-plugin/marketplace.json  # este repo es también su marketplace
-hooks/hooks.json                 # SessionStart → scripts/sync.sh
+hooks/hooks.json                 # SessionStart / UserPromptSubmit → scripts/sync.sh
 skills/{setup,status,review,uninstall}/SKILL.md
 lib/bot.py                       # el bot (solo stdlib)
 scripts/sync.sh                  # sincroniza datos, units y genera `pr-autofix`
