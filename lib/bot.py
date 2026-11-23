@@ -36,6 +36,22 @@ CFG = {}
 AUTH = ""
 
 
+# Claude Code trata todo lo que hay bajo ~/.claude como fichero sensible y deniega Edit/Write
+# aunque se use acceptEdits. Los worktrees deben vivir fuera (por defecto, en la caché XDG).
+CLAUDE_HOME = os.path.realpath(os.path.expanduser("~/.claude"))
+DEFAULT_WORKTREES_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "bitbucket-pr-autofix", "worktrees")
+
+
+def resolve_worktrees_dir(configured):
+    wt = os.path.realpath(configured or DEFAULT_WORKTREES_DIR)
+    if wt == CLAUDE_HOME or wt.startswith(CLAUDE_HOME + os.sep):
+        log("AVISO: worktrees_dir %r está dentro de ~/.claude y Claude no podría editar ficheros; uso %s"
+            % (configured, DEFAULT_WORKTREES_DIR))
+        return DEFAULT_WORKTREES_DIR
+    return wt
+
+
 # ---------------------------------------------------------------- utilidades
 def log(msg):
     line = "%s %s" % (dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg)
@@ -478,7 +494,7 @@ def main():
     for k in ("repos_root", "worktrees_dir", "claude_bin"):
         CFG[k] = os.path.expanduser(CFG.get(k) or "")
     CFG["claude_bin"] = shutil.which(CFG["claude_bin"] or "claude") or CFG["claude_bin"]
-    CFG["worktrees_dir"] = CFG["worktrees_dir"] or os.path.join(BASE, "worktrees")
+    CFG["worktrees_dir"] = resolve_worktrees_dir(CFG["worktrees_dir"])
     CFG["repo_paths"] = {k: os.path.expanduser(v) for k, v in CFG.get("repo_paths", {}).items()}
     if not os.path.isdir(CFG["repos_root"]):
         sys.exit("La carpeta de repos %r no existe (ojo con mayúsculas/minúsculas). Corrige la opción "

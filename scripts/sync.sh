@@ -140,7 +140,7 @@ case "${1:-sync}" in
     if [ -f "$OLD/config.json" ]; then
       python3 - "$OLD/config.json" "$DATA/config.json" <<'PY'
 import json, sys
-c = json.load(open(sys.argv[1])); c["worktrees_dir"] = ""   # usar <datos>/worktrees
+c = json.load(open(sys.argv[1])); c["worktrees_dir"] = ""   # usar el valor por defecto (~/.cache/bitbucket-pr-autofix/worktrees)
 json.dump(c, open(sys.argv[2], "w"), indent=2, ensure_ascii=False); print("migrado config.json")
 PY
     fi

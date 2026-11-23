@@ -186,6 +186,7 @@ Las opciones del plugin cubren lo habitual. Para lo demás, edita `config.json` 
 | `model` | Modelo a usar (vacío = el de tu configuración) | `""` |
 | `max_turns` / `timeout_sec` | Límites de cada ejecución de Claude | `30` / `900` |
 | `lookback_minutes` | Margen hacia atrás al buscar comentarios nuevos | `10` |
+| `worktrees_dir` | Carpeta de los worktrees. No puede estar dentro de `~/.claude`: Claude Code deniega ahí la escritura (si se configura así, el bot usa el valor por defecto) | `~/.cache/bitbucket-pr-autofix/worktrees` |
 | `allowed_tools` | Herramientas permitidas a Claude | lectura/edición + `git diff/log/status/show` |
 | `extra_allowed_tools` | Herramientas extra por repo, por ejemplo para ejecutar tests | `{}` |
 | `disallowed_tools` | Herramientas prohibidas | `git push/commit/reset`, web |
