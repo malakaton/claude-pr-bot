@@ -101,7 +101,6 @@ Si haces el comentario inline sobre una línea del diff, Claude recibe el ficher
 
 Claude responde en el hilo con uno de estos mensajes:
 
-- ⏳ trabajando
 - ✅ aplicado, con el enlace al commit
 - 📝 aplicado sin commit, para que lo revises en tu IDE
 - ℹ️ sin cambios o le falta información

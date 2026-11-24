@@ -27,7 +27,6 @@ ENV_PATH = os.path.join(BASE, ".env")
 LOCK_PATH = os.path.join(BASE, ".lock")
 LOG_PATH = os.path.join(BASE, "bot.log")
 API = "https://api.bitbucket.org/2.0"
-BOT_MARK = "🤖 **claude-bot**"
 
 CFG = {}
 AUTH = ""
@@ -141,9 +140,8 @@ def pr_path(repo, pr_id):
 
 
 def reply(repo, pr_id, parent_id, text, dry=False):
-    content = "%s\n\n%s" % (BOT_MARK, text)
     # nunca re-dispararnos a nosotros mismos
-    content = re.sub(re.escape(CFG["trigger"]), "`claude`", content, flags=re.I)
+    content = re.sub(re.escape(CFG["trigger"]), "`claude`", text, flags=re.I)
     if dry:
         log("[dry-run] reply PR %s#%s -> %s" % (repo, pr_id, text[:80]))
         return None
@@ -205,7 +203,6 @@ def find_triggers(state, me, dry):
             raw = (c.get("content") or {}).get("raw") or ""
             if (c.get("deleted") or cid in state["comments"]
                     or c["user"].get("account_id") != me["account_id"]
-                    or raw.startswith(BOT_MARK)
                     or parse_ts(c["created_on"]) < since
                     or not TRIGGER_RE.search(raw)):
                 continue
@@ -363,7 +360,6 @@ def process(state, repo, pr, c, dry):
     if not repo_path:
         return fail("No encuentro clon local de `%s` en %s." % (repo, CFG["repos_root"]))
 
-    reply(repo, pr_id, cid, "⏳ Trabajando en ello (modo `%s`)…" % mode)
     wt = os.path.join(CFG["worktrees_dir"], "%s-pr%s-c%s" % (repo, pr_id, cid))
     branch = "claude/pr%s-c%s" % (pr_id, cid)
     try:
