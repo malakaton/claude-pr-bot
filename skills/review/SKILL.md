@@ -7,7 +7,7 @@ description: Revisa con el usuario los fixes de bitbucket-pr-autofix entregados 
 
 Con `@claude --review` el bot deja los cambios **sin commit**:
 - en la copia local del usuario, si estaba en la rama de la PR y limpia, o
-- en un worktree `<repo>/.claude-review/pr<id>-c<cid>/` registrado en el IDE (pestaña Commit). Su rama tiene como upstream `origin/<rama-PR>`.
+- en un worktree `<repo>/.claude-review/pr<id>-c<cid>/` visible en el IDE (pestaña Commit en JetBrains, Source Control en VS Code). Su rama tiene como upstream `origin/<rama-PR>`.
 
 El usuario aprueba haciendo commit + push desde el IDE, o descarta con rollback. El bot limpia solo los worktrees resueltos en el siguiente poll.
 

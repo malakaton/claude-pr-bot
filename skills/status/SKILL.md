@@ -12,4 +12,4 @@ description: Muestra el estado de bitbucket-pr-autofix (timer, último poll, com
    - el último poll,
    - el número de comentarios por estado y el coste total,
    - los errores recientes del log (con su causa probable),
-   - los worktrees de revisión sin resolver (sugiere revisarlos en la pestaña Commit del IDE o con `/bitbucket-pr-autofix:review`).
+   - los worktrees de revisión sin resolver (sugiere revisarlos en el IDE (pestaña Commit en JetBrains, Source Control en VS Code) o con `/bitbucket-pr-autofix:review`).

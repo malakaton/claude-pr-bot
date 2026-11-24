@@ -32,11 +32,17 @@ Sigue estos pasos en orden, ejecutando los comandos con Bash. Informa brevemente
 
 7. **Requisitos**: comprueba `command -v git python3 claude systemctl` y que `ssh -T git@bitbucket.org` autentica (código de salida 0 o mensaje "authenticated"). Si algo falla, explica cómo arreglarlo.
 
+7b. **VS Code** (solo si `command -v code` existe o hay `~/.config/Code/User/settings.json`): para que los worktrees de revisión `.claude-review/…` aparezcan en Source Control.
+   - Lee `~/.config/Code/User/settings.json` (si no existe, créalo con `{}`). Es JSONC: puede tener comentarios y comas finales. Edítalo con la herramienta Edit respetando su formato; **nunca** lo reescribas con un parser JSON.
+   - Si falta, añade `"git.detectWorktrees": true`.
+   - Si falta, añade `"**/.claude-review": true` dentro de `"files.exclude"` (fusiona con el objeto existente si lo hay): evita ficheros y clases duplicados en el explorador, la búsqueda y las extensiones de PHP; Source Control sigue mostrando el worktree.
+   - Si ya estaba todo, no toques el fichero. Di al usuario qué has añadido o que ya estaba.
+
 8. **Timer**: `pr-autofix install-units`.
 
 9. **Prueba**: `pr-autofix run --dry-run`. Resume qué comentarios detectaría (normalmente ninguno) y confirma que no hay errores.
 
 10. **Explica el uso** en pocas líneas:
     - En una PR suya, comentar `@claude <instrucción>` (o responder al comentario de un revisor con `@claude arréglalo`). En ≤2 min Claude aplica el fix, hace commit + push y responde en el hilo.
-    - `@claude --review …` aplica el fix SIN commit: en su copia local si está en la rama de la PR y limpia, o si no, en un worktree `.claude-review/…` que aparece en la pestaña Commit del IDE (JetBrains). Lo revisa, retoca y hace commit + push desde el IDE (o rollback).
+    - `@claude --review …` aplica el fix SIN commit: en su copia local si está en la rama de la PR y limpia, o si no, en un worktree `.claude-review/…` que aparece en la pestaña Commit (JetBrains) o en Source Control (VS Code). Lo revisa, retoca y hace commit + push desde el IDE (o rollback).
     - Estado y logs: `/bitbucket-pr-autofix:status`.

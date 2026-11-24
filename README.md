@@ -119,7 +119,7 @@ Claude responde en el hilo con uno de estos mensajes:
 
 ## Modo revisión: `@claude --review`
 
-Si escribes `@claude --review …`, Claude **aplica el fix pero no hace commit ni push**. Los cambios te llegan como cambios locales sin commit, para revisarlos en la **pestaña Commit de tu IDE** igual que si los hubieras hecho tú.
+Si escribes `@claude --review …`, Claude **aplica el fix pero no hace commit ni push**. Los cambios te llegan como cambios locales sin commit, para revisarlos en tu IDE (**pestaña Commit** en JetBrains, **Source Control** en VS Code) igual que si los hubieras hecho tú.
 
 ```
 @claude --review mueve esta validación al value object Email
@@ -134,9 +134,16 @@ Claude genera el cambio en un worktree aislado y luego lo entrega de una de esta
 
 En el segundo caso, si el repo tiene proyecto de **JetBrains** (`.idea/`), el bot registra el worktree como repositorio git del proyecto. Aparece en la pestaña Commit como un repo más (`pr1240-c…`) y la carpeta `.claude-review` se excluye del índice para que no haya clases duplicadas. También se añade a `.git/info/exclude`, así que tu `git status` no la ve.
 
+En **VS Code**, el worktree aparece en Source Control como un repo más si está activado `git.detectWorktrees`. `/bitbucket-pr-autofix:setup` lo activa y oculta `.claude-review` del explorador para evitar ficheros duplicados. A mano, en tus settings de usuario:
+
+```jsonc
+"git.detectWorktrees": true,
+"files.exclude": { "**/.claude-review": true }
+```
+
 Después:
 
-- **Aprobar**: retoca lo que quieras y haz commit y push desde el IDE. El push va a la rama de la PR, porque la rama del worktree tiene como upstream `origin/<rama-PR>`. Claude te deja un mensaje de commit sugerido en la PR.
+- **Aprobar**: retoca lo que quieras y haz commit y push desde el IDE (JetBrains o VS Code). El push va a la rama de la PR, porque la rama del worktree tiene como upstream `origin/<rama-PR>`. Claude te deja un mensaje de commit sugerido en la PR.
 - **Descartar**: haz Rollback de los cambios.
 - **Con ayuda**: `/bitbucket-pr-autofix:review` te enseña el diff, te da su opinión y aplica los retoques que le pidas.
 

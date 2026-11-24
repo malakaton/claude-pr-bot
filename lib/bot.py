@@ -680,7 +680,7 @@ def process(state, repo, pr, c, dry):
             extra += "\n\n⚠️ La verificación falla: no hago push, te lo dejo para revisar."
 
         if mode == "review":
-            # sin commit ni push: se entrega para revisarlo en la pestaña Commit del IDE
+            # sin commit ni push: se entrega para revisarlo en el IDE
             deliver_review(state, cid, entry, repo_path, wt, chained, base, extra, body)
             return
 
@@ -716,7 +716,7 @@ def process(state, repo, pr, c, dry):
 
 
 # ---------------------------------------------------------------- entrega para revisión (--review)
-REVIEW_DIR = ".claude-review"  # worktrees de revisión dentro del repo, visibles en la pestaña Commit del IDE
+REVIEW_DIR = ".claude-review"  # worktrees de revisión dentro del repo, visibles en el control de versiones del IDE
 
 
 def local_blocker(repo_path, branch, patch, allow_dirty=False):
@@ -823,7 +823,7 @@ def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra
             sh(["git", "branch", "--set-upstream-to=origin/%s" % src, e["local_branch"]], cwd=repo_path)
             ide_register(repo_path, new_wt)
             e.update(status="review_worktree", delivered="worktree")
-            where = "el worktree `%s` (en el IDE, pestaña Commit, repo `%s`)" % (
+            where = "el worktree `%s` (pestaña Commit en JetBrains o Source Control en VS Code, repo `%s`)" % (
                 os.path.relpath(new_wt, repo_path), os.path.basename(new_wt))
             if base:
                 note = "\n\n⚠️ Incluye también tus cambios locales sin commit, que se usaron como base."
