@@ -1,7 +1,7 @@
 {
   "name": "bitbucket-pr-autofix",
-  "version": "0.2.3",
-  "description": "Escribe @claude en un comentario de tu PR de Bitbucket y Claude aplica el fix, hace commit y push (o lo deja para que lo revises con --review).",
+  "version": "0.3.0",
+  "description": "Escribe @claude en un comentario de tu PR de Bitbucket y Claude aplica el fix, hace commit y push (o con --review lo deja sin commit para que lo revises en tu IDE).",
   "author": {
     "name": "Manel Bermúdez"
   },
@@ -42,7 +42,7 @@
     "mode": {
       "type": "string",
       "title": "Modo por defecto",
-      "description": "auto = commit + push directo; review = revisas tú antes del commit y push.",
+      "description": "auto = commit + push directo; review = te deja los cambios sin commit para revisarlos en el IDE.",
       "options": [
         "auto",
         "review"

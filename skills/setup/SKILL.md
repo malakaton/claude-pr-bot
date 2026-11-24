@@ -38,5 +38,5 @@ Sigue estos pasos en orden, ejecutando los comandos con Bash. Informa brevemente
 
 10. **Explica el uso** en pocas líneas:
     - En una PR suya, comentar `@claude <instrucción>` (o responder al comentario de un revisor con `@claude arréglalo`). En ≤2 min Claude aplica el fix, hace commit + push y responde en el hilo.
-    - `@claude --review …` aplica el fix pero NO hace commit ni push hasta que lo revise con `/bitbucket-pr-autofix:review`.
+    - `@claude --review …` aplica el fix SIN commit: en su copia local si está en la rama de la PR y limpia, o si no, en un worktree `.claude-review/…` que aparece en la pestaña Commit del IDE (JetBrains). Lo revisa, retoca y hace commit + push desde el IDE (o rollback).
     - Estado y logs: `/bitbucket-pr-autofix:status`.

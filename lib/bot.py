@@ -3,10 +3,7 @@
 
 Uso:
   bot.py run [--dry-run]        Una pasada de polling (lo que ejecuta el timer)
-  bot.py pending                Lista fixes pendientes de revisión
-  bot.py show <cid>             Muestra el commit preparado
-  bot.py approve <cid>          Push del fix pendiente + respuesta en la PR
-  bot.py reject <cid> [motivo]  Descarta el fix pendiente
+  bot.py pending                Lista worktrees de revisión (--review) aún sin resolver
   bot.py forget <cid>           Olvida un comentario (para reprocesarlo)
   bot.py whoami                 Comprueba credenciales
 """
@@ -97,8 +94,8 @@ def save_state(state):
     os.replace(tmp, STATE_PATH)
 
 
-def sh(args, cwd=None, check=True, timeout=None):
-    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def sh(args, cwd=None, check=True, timeout=None, input=None):
+    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout, input=input)
     if check and r.returncode != 0:
         raise RuntimeError("%s -> %s\n%s" % (" ".join(args), r.returncode, (r.stderr or r.stdout).strip()))
     return r
@@ -390,12 +387,8 @@ def process(state, repo, pr, c, dry):
         entry["commit_message"] = msg
 
         if mode == "review":
-            # sin commit ni push: los cambios quedan en el worktree hasta approve/reject
-            entry["status"] = "pending_review"
-            save_state(state)
-            reply(repo, pr_id, cid, "📝 Cambios aplicados en local, pendientes de revisión antes del commit y push.\n\n%s" % entry["summary"])
-            notify("Fix pendiente de revisión", "%s PR#%s (c%s)\n%s\nbot.py approve %s" % (repo, pr_id, cid, msg, cid))
-            log("Pendiente de revisión: %s" % wt)
+            # sin commit ni push: se entrega para revisarlo en la pestaña Commit del IDE
+            deliver_review(state, cid, entry, repo_path, wt)
             return
 
         commit(wt, entry, cid)
@@ -411,8 +404,134 @@ def process(state, repo, pr, c, dry):
         log("OK %s PR#%s c%s -> %s" % (repo, pr_id, cid, sha[:10]))
     except Exception as e:
         fail(str(e))
-        if os.path.exists(wt) and entry.get("status") != "pending_review":
+        if os.path.exists(wt):
             remove_worktree(repo_path, wt, branch)
+
+
+# ---------------------------------------------------------------- entrega para revisión (--review)
+REVIEW_DIR = ".claude-review"  # worktrees de revisión dentro del repo, visibles en la pestaña Commit del IDE
+
+
+def local_blocker(repo_path, branch, patch):
+    """Motivo por el que el parche no puede aplicarse en la copia local del usuario, o None si puede."""
+    head = sh(["git", "symbolic-ref", "--short", "-q", "HEAD"], cwd=repo_path, check=False).stdout.strip()
+    if head != branch:
+        return "la copia local está en `%s`" % (head or "HEAD detached")
+    if sh(["git", "status", "--porcelain", "--untracked-files=no"], cwd=repo_path).stdout.strip():
+        return "la copia local tiene cambios sin commit"
+    sh(["git", "fetch", "-q", "origin", branch], cwd=repo_path)
+    r = sh(["git", "merge", "--ff-only", "-q", "origin/%s" % branch], cwd=repo_path, check=False)
+    if r.returncode:
+        return "no se pudo actualizar desde origin: %s" % (r.stderr or r.stdout).strip()[-300:]
+    r = sh(["git", "apply", "--check"], cwd=repo_path, check=False, input=patch)
+    if r.returncode:
+        return "el parche no aplica sobre la copia local: %s" % r.stderr.strip()[-300:]
+    return None
+
+
+def ide_files(repo_path):
+    """(vcs.xml, .iml) del proyecto JetBrains del repo, si existen."""
+    idea = os.path.join(repo_path, ".idea")
+    vcs = os.path.join(idea, "vcs.xml")
+    imls = [os.path.join(idea, f) for f in sorted(os.listdir(idea)) if f.endswith(".iml")] if os.path.isdir(idea) else []
+    return (vcs if os.path.exists(vcs) else None), (imls[0] if imls else None)
+
+
+def edit_file(path, fn):
+    s = open(path).read()
+    n = fn(s)
+    if n != s:
+        with open(path, "w") as f:
+            f.write(n)
+
+
+def ide_register(repo_path, wt):
+    """Marca el worktree como repo git en el IDE (pestaña Commit) y excluye la carpeta del índice (sin clases duplicadas)."""
+    excl = os.path.join(repo_path, ".git", "info", "exclude")
+    os.makedirs(os.path.dirname(excl), exist_ok=True)
+    if "/%s/" % REVIEW_DIR not in (open(excl).read().split("\n") if os.path.exists(excl) else []):
+        with open(excl, "a") as f:
+            f.write("\n/%s/\n" % REVIEW_DIR)
+    vcs, iml = ide_files(repo_path)
+    if vcs:
+        line = '    <mapping directory="$PROJECT_DIR$/%s" vcs="Git" />\n' % os.path.relpath(wt, repo_path)
+        edit_file(vcs, lambda s: s if line in s else s.replace("  </component>", line + "  </component>", 1))
+    if iml:
+        def add_exclude(s):
+            m = re.search(r'<content url="([^"]+)">', s)
+            tag = '<excludeFolder url="%s/%s" />' % (m.group(1), REVIEW_DIR) if m else None
+            return s if not tag or tag in s else s.replace(m.group(0), m.group(0) + "\n      " + tag, 1)
+        edit_file(iml, add_exclude)
+
+
+def ide_unregister(repo_path, wt):
+    vcs, _ = ide_files(repo_path)
+    if vcs:
+        line = '    <mapping directory="$PROJECT_DIR$/%s" vcs="Git" />\n' % os.path.relpath(wt, repo_path)
+        edit_file(vcs, lambda s: s.replace(line, ""))
+
+
+def deliver_review(state, cid, e, repo_path, wt):
+    """A: si la copia local está en la rama de la PR y limpia, aplica ahí. B: si no, worktree dentro del repo registrado en el IDE."""
+    src = e["branch"]
+    sh(["git", "add", "-A"], cwd=wt)
+    patch = sh(["git", "diff", "--cached", "--binary"], cwd=wt).stdout
+    blocker = local_blocker(repo_path, src, patch)
+    if blocker is None:
+        # no usar `git apply --intent-to-add`: en git < 2.44 machaca el índice
+        new_files = [f for f in sh(["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+                                   cwd=wt).stdout.split("\n") if f]
+        sh(["git", "apply"], cwd=repo_path, input=patch)
+        if new_files:
+            sh(["git", "add", "--intent-to-add", "--"] + new_files, cwd=repo_path)
+        remove_worktree(repo_path, wt, e["local_branch"])
+        e.update(status="done", worktree=None, delivered="local")
+        where = "tu copia local (`%s`, rama `%s`)" % (repo_path, src)
+    else:
+        log("c%s no va a la copia local (%s): worktree de revisión" % (cid, blocker))
+        sh(["git", "reset", "-q"], cwd=wt)
+        sh(["git", "add", "-A", "--intent-to-add"], cwd=wt)  # ficheros nuevos visibles como cambios, sin stage
+        new_wt = os.path.join(repo_path, REVIEW_DIR, "pr%s-c%s" % (e["pr"], cid))
+        os.makedirs(os.path.dirname(new_wt), exist_ok=True)
+        if os.path.exists(new_wt):
+            remove_worktree(repo_path, new_wt)
+        sh(["git", "worktree", "move", wt, new_wt], cwd=repo_path)
+        e["worktree"] = new_wt
+        # el push desde el IDE debe ir a la rama de la PR, no crear claude/pr…
+        sh(["git", "branch", "--set-upstream-to=origin/%s" % src, e["local_branch"]], cwd=repo_path)
+        ide_register(repo_path, new_wt)
+        e.update(status="review_worktree", delivered="worktree")
+        where = "el worktree `%s` (en el IDE, pestaña Commit, repo `%s`)" % (
+            os.path.relpath(new_wt, repo_path), os.path.basename(new_wt))
+    save_state(state)
+    reply(e["repo"], e["pr"], cid, "📝 Cambios aplicados **sin commit** en %s. Revísalos, retoca lo que quieras y haz "
+          "commit y push (o rollback para descartarlos).\n\nMensaje de commit sugerido: `%s`\n\n%s" % (
+              where, e.get("commit_message", ""), e.get("summary", "")))
+    notify("Fix listo para revisar", "%s PR#%s\n%s" % (e["repo"], e["pr"], e.get("commit_message", "")))
+    log("Entregado c%s -> %s" % (cid, e["delivered"]))
+
+
+def cleanup_review_worktrees(state):
+    """Borra los worktrees de revisión ya resueltos: sin cambios y con todo subido (push) o descartado (rollback)."""
+    for cid, e in state["comments"].items():
+        if e.get("status") != "review_worktree":
+            continue
+        try:
+            repo_path, wt = local_repo(e["repo"]), e["worktree"]
+            if os.path.isdir(wt):
+                if sh(["git", "status", "--porcelain"], cwd=wt).stdout.strip():
+                    continue
+                sh(["git", "fetch", "-q", "origin", e["branch"]], cwd=repo_path)
+                if sh(["git", "merge-base", "--is-ancestor", "HEAD", "origin/%s" % e["branch"]],
+                      cwd=wt, check=False).returncode:
+                    continue  # hay commits sin push
+                remove_worktree(repo_path, wt, e.get("local_branch"))
+            ide_unregister(repo_path, wt)
+            e["status"] = "done"
+            save_state(state)
+            log("Worktree de revisión resuelto y eliminado: c%s" % cid)
+        except Exception as ex:
+            log("ERROR limpiando worktree c%s: %s" % (cid, ex))
 
 
 # ---------------------------------------------------------------- comandos
@@ -420,6 +539,8 @@ def cmd_run(dry):
     state = load_state()
     me = api("GET", "/user")
     started = now_utc()
+    if not dry:
+        cleanup_review_worktrees(state)
     for repo, pr, c in find_triggers(state, me, dry):
         process(state, repo, pr, c, dry)
     if not dry:
@@ -427,54 +548,12 @@ def cmd_run(dry):
         save_state(state)
 
 
-def get_pending(cid):
-    state = load_state()
-    e = state["comments"].get(cid)
-    if not e or e.get("status") != "pending_review":
-        sys.exit("Comentario %s no está pendiente de revisión" % cid)
-    return state, e
-
-
 def cmd_pending():
     for cid, e in load_state()["comments"].items():
-        if e.get("status") == "pending_review":
+        if e.get("status") == "review_worktree":
             print("c%s  %s PR#%s (%s)\n    %s\n    %s\n    %s\n" % (
                 cid, e["repo"], e["pr"], e["branch"], e["pr_url"], e["worktree"],
                 (e.get("summary") or "").replace("\n", " ")[:200]))
-
-
-def cmd_show(cid):
-    _, e = get_pending(cid)
-    sh(["git", "add", "-A"], cwd=e["worktree"])  # incluye ficheros nuevos en el diff
-    print("Commit propuesto: %s\n" % e.get("commit_message"))
-    os.execvp("git", ["git", "-C", e["worktree"], "diff", "--cached", "--stat", "-p"])
-
-
-def cmd_approve(cid):
-    state, e = get_pending(cid)
-    wt, repo = e["worktree"], e["repo"]
-    repo_path = local_repo(repo)
-    if not sh(["git", "status", "--porcelain"], cwd=wt).stdout.strip():
-        sys.exit("No hay cambios en %s" % wt)
-    commit(wt, e, cid)  # incluye también tus retoques manuales
-    files = files_changed(wt)
-    push(repo_path, wt, e["branch"])
-    sha = sh(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
-    e.update(status="done", commit=sha)
-    save_state(state)
-    remove_worktree(repo_path, wt, e.get("local_branch"))
-    reply(repo, e["pr"], cid, "✅ Revisado y aplicado en [`%s`](%s)\n\n%s\n\nFicheros: %s" % (
-        sha[:10], commit_url(repo, sha), e.get("summary", ""), ", ".join("`%s`" % f for f in files)))
-    log("Aprobado c%s -> %s" % (cid, sha[:10]))
-
-
-def cmd_reject(cid, reason):
-    state, e = get_pending(cid)
-    remove_worktree(local_repo(e["repo"]), e["worktree"], e.get("local_branch"))
-    e["status"] = "rejected"
-    save_state(state)
-    reply(e["repo"], e["pr"], cid, "🚫 Fix descartado tras revisión.%s" % (("\n\n" + reason) if reason else ""))
-    log("Rechazado c%s" % cid)
 
 
 def cmd_forget(cid):
@@ -515,12 +594,6 @@ def main():
         cmd_run("--dry-run" in argv)
     elif cmd == "pending":
         cmd_pending()
-    elif cmd == "show" and len(argv) > 1:
-        cmd_show(argv[1].lstrip("c"))
-    elif cmd == "approve" and len(argv) > 1:
-        cmd_approve(argv[1].lstrip("c"))
-    elif cmd == "reject" and len(argv) > 1:
-        cmd_reject(argv[1].lstrip("c"), " ".join(argv[2:]))
     elif cmd == "forget" and len(argv) > 1:
         cmd_forget(argv[1].lstrip("c"))
     elif cmd == "whoami":

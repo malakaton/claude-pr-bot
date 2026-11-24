@@ -83,7 +83,7 @@ Para actualizar: `/plugin update bitbucket-pr-autofix@bitbucket-pr-tools`. El ti
 |---|---|
 | `/bitbucket-pr-autofix:setup` | Instala, valida y activa el bot (y migra una instalación manual previa) |
 | `/bitbucket-pr-autofix:status` | Estado del timer, último poll, coste acumulado, errores recientes, pendientes |
-| `/bitbucket-pr-autofix:review` | Revisa contigo los fixes `--review` pendientes: muestra el diff, da su valoración, permite retocar y aprueba o rechaza **solo con tu confirmación** |
+| `/bitbucket-pr-autofix:review` | Revisa contigo los fixes `--review` sin resolver: muestra el diff, da su valoración y aplica retoques que le pidas |
 | `/bitbucket-pr-autofix:uninstall` | Detiene y quita el timer |
 
 ---
@@ -103,7 +103,7 @@ Claude responde en el hilo con uno de estos mensajes:
 
 - ⏳ trabajando
 - ✅ aplicado, con el enlace al commit
-- 📝 pendiente de revisión
+- 📝 aplicado sin commit, para que lo revises en tu IDE
 - ℹ️ sin cambios o le falta información
 - ❌ error
 
@@ -113,29 +113,28 @@ Claude responde en el hilo con uno de estos mensajes:
 
 ## Modo revisión: `@claude --review`
 
-Si escribes `@claude --review …`, Claude **aplica el fix pero no hace commit ni push**. Antes de que nada llegue a la rama de la PR, **compruebas tú mismo que el cambio de Claude es correcto**.
+Si escribes `@claude --review …`, Claude **aplica el fix pero no hace commit ni push**. Los cambios te llegan como cambios locales sin commit, para revisarlos en la **pestaña Commit de tu IDE** igual que si los hubieras hecho tú.
 
 ```
 @claude --review mueve esta validación al value object Email
 ```
 
-Flujo:
+Claude genera el cambio en un worktree aislado y luego lo entrega de una de estas dos formas:
 
-1. Claude aplica los cambios en un worktree local, sin commit.
-2. Recibes una notificación de escritorio y Claude responde en la PR con 📝 *"Cambios aplicados en local, pendientes de revisión antes del commit y push"*.
-3. Revisas el cambio:
-   - **Con Claude**: ejecuta `/bitbucket-pr-autofix:review`. Te enseña el diff, te da su opinión y puedes pedirle retoques.
-   - **A mano**:
-     ```bash
-     pr-autofix pending              # lista los fixes pendientes (repo, PR, carpeta del worktree, resumen)
-     pr-autofix show <cid>           # muestra el commit propuesto y el diff completo
-     ```
-     Puedes abrir la carpeta del worktree en tu IDE, retocar el código o ejecutar los tests.
-4. Decides:
-   ```bash
-   pr-autofix approve <cid>        # commit (con tus retoques incluidos) + push + respuesta ✅ en la PR
-   pr-autofix reject <cid> motivo  # descarta los cambios + respuesta 🚫 en la PR
-   ```
+| Situación de tu clon local | Dónde aparecen los cambios |
+|---|---|
+| Está en la rama de la PR y sin cambios sin commit | **Directamente en tu copia de trabajo.** Si tu rama iba por detrás de origin, antes hace `git pull --ff-only`. |
+| Está en otra rama o tiene cambios a medias | En un worktree dentro del repo, `.claude-review/pr<id>-c<cid>/`. No tienes que cambiar de rama y puedes tener varios fixes a la vez. |
+
+En el segundo caso, si el repo tiene proyecto de **JetBrains** (`.idea/`), el bot registra el worktree como repositorio git del proyecto. Aparece en la pestaña Commit como un repo más (`pr1240-c…`) y la carpeta `.claude-review` se excluye del índice para que no haya clases duplicadas. También se añade a `.git/info/exclude`, así que tu `git status` no la ve.
+
+Después:
+
+- **Aprobar**: retoca lo que quieras y haz commit y push desde el IDE. El push va a la rama de la PR, porque la rama del worktree tiene como upstream `origin/<rama-PR>`. Claude te deja un mensaje de commit sugerido en la PR.
+- **Descartar**: haz Rollback de los cambios.
+- **Con ayuda**: `/bitbucket-pr-autofix:review` te enseña el diff, te da su opinión y aplica los retoques que le pidas.
+
+En el siguiente poll, el bot detecta los worktrees resueltos (sin cambios y con todo subido o descartado), los borra y quita su registro del IDE. `pr-autofix pending` lista los que siguen abiertos.
 
 Si quieres revisar siempre, elige el modo `review` en la configuración del plugin. Cuando quieras push directo en un caso concreto, usa `@claude --push …`.
 
@@ -151,7 +150,7 @@ Si quieres revisar siempre, elige el modo `review` en la configuración del plug
    - tu instrucción,
    - el comentario al que respondes, si existe,
    - el fichero y la línea, si el comentario es inline.
-5. Si hay cambios, el script (no Claude) hace commit y push a la rama de la PR y responde en el hilo. Con `--review`, se para antes del commit.
+5. Si hay cambios, el script (no Claude) hace commit y push a la rama de la PR y responde en el hilo. Con `--review`, se para antes del commit y te entrega los cambios para revisarlos en el IDE.
 6. Guarda el comentario como procesado en `state.json` y borra el worktree.
 
 Arquitectura del plugin: un plugin no puede tener procesos en segundo plano, así que el polling lo hace un **timer de systemd de usuario** (`bitbucket-pr-autofix.timer`). Ese timer ejecuta una copia del bot guardada en el directorio de datos del plugin (`~/.claude/plugins/data/…`), que se conserva entre actualizaciones. Los hooks `SessionStart` y `UserPromptSubmit` del plugin mantienen esa copia y las credenciales al día (el segundo solo actúa si cambió la versión o las opciones), y genera el comando `~/.local/bin/pr-autofix`.
@@ -208,7 +207,8 @@ pr-autofix status              # timer, último poll, coste, log reciente
 pr-autofix run --dry-run       # ver qué detectaría, sin ejecutar nada
 pr-autofix run                 # forzar una pasada ahora
 pr-autofix whoami              # comprobar credenciales
-pr-autofix pending | show <cid> | approve <cid> | reject <cid> [motivo] | forget <cid>
+pr-autofix pending            # worktrees de revisión (--review) aún sin resolver
+pr-autofix forget <cid>        # olvidar un comentario para reprocesarlo
 journalctl --user -u bitbucket-pr-autofix -f   # logs de systemd
 ```
 

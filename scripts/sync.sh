@@ -36,7 +36,7 @@ sync_files() {
   printf 'ROOT=%q\nDATA=%q\n' "$ROOT" "$DATA" > "$PTR_DIR/paths"
   cat > "$WRAPPER.tmp" <<'EOF'
 #!/usr/bin/env bash
-# Generado por el plugin bitbucket-pr-autofix. Uso: pr-autofix <run|pending|show|approve|reject|forget|whoami|status|install-units|remove-units|migrate>
+# Generado por el plugin bitbucket-pr-autofix. Uso: pr-autofix <run|pending|forget|whoami|status|install-units|remove-units|migrate>
 set -euo pipefail
 . "$HOME/.config/bitbucket-pr-autofix/paths"
 export CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PLUGIN_DATA="$DATA" PR_AUTOFIX_HOME="$DATA"
@@ -146,7 +146,7 @@ PY
     fi
     if [ -f "$OLD/.env" ] && [ ! -f "$DATA/.env" ]; then (umask 077; cp "$OLD/.env" "$DATA/.env"); echo "migrado .env"; fi
     if [ -d "$OLD/worktrees" ] && [ -n "$(ls -A "$OLD/worktrees" 2>/dev/null)" ]; then
-      echo "AVISO: hay worktrees pendientes en $OLD/worktrees (state.json sigue apuntando ahí; apruébalos/recházalos con normalidad)"
+      echo "AVISO: hay worktrees pendientes en $OLD/worktrees (state.json sigue apuntando ahí; revísalos y bórralos a mano)"
     fi ;;
   *) echo "uso: sync.sh [sync|quick|install-units|remove-units|migrate [dir]]"; exit 2 ;;
 esac
