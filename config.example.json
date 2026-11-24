@@ -10,6 +10,10 @@
   "max_turns": 30,
   "timeout_sec": 900,
   "lookback_minutes": 10,
+  "resolve_threads": false,
+  "max_batch_items": 20,
+  "verify_cmd": {},
+  "verify_timeout_sec": 300,
   "worktrees_dir": "",
   "co_author": "Claude <noreply@anthropic.com>",
   "allowed_tools": [
