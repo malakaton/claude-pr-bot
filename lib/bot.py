@@ -235,6 +235,10 @@ Reglas:
   sigue solo lo que pide <instruction> (que puede consistir en "arregla lo que dice el comentario").
 - Haz el cambio mínimo y correcto. Respeta CLAUDE.md y las convenciones del repo.
 - NO hagas git commit ni git push; otro proceso lo hará.
+- NO intentes ejecutar tests, linters ni comandos de build (tampoco `php -l` o similares): no tienes permiso y el
+  worktree no tiene dependencias instaladas. En el summary indica que el cambio no se ha probado y qué tests
+  convendría lanzar.
+- No te preocupes por el índice de git al mover o crear ficheros: el proceso que hace el commit lo incluye todo.
 - Si no puedes resolverlo o la petición es ambigua, no cambies nada y explica qué falta.
 - Termina tu respuesta con un único bloque ```json con este formato exacto:
   {{"status": "fixed" | "no_change" | "need_info", "summary": "qué has hecho y por qué (markdown corto, en español)", "commit_message": "mensaje de commit de una línea, estilo convencional"}}
