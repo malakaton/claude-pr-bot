@@ -265,7 +265,7 @@ Descripción de la PR:
 
 BASE_NOTE = """
 El worktree ya contiene cambios sin commit de peticiones anteriores (`git diff HEAD` para verlos).
-Consérvalos y añade tu cambio encima.
+Consérvalos y añade tu cambio encima. No los menciones en el summary.
 """
 
 RULES = """
@@ -284,10 +284,10 @@ FIX_TAIL = """- Si no puedes resolverlo o la petición es ambigua, no cambies na
   {"status": "fixed" | "no_change" | "need_info", "summary": "qué has hecho y por qué (markdown corto, en español)", "commit_message": "mensaje de commit de una línea, estilo convencional"}
 """
 
-ALL_TAIL = """- Atiende cada <item> por separado. Si alguno es ambiguo o crees que el revisor no tiene razón, no lo
+ALL_TAIL = """- Atiende cada <item> por separado; si en un hilo te preguntan tu opinión, respóndela en su "reply". Si alguno es ambiguo o crees que el revisor no tiene razón, no lo
   cambies y explícalo en su "reply".
 - Termina tu respuesta con un único bloque ```json con este formato exacto:
-  {"status": "fixed" (si has cambiado algo) | "no_change" | "need_info", "summary": "resumen global (markdown corto, en español)", "commit_message": "mensaje de commit de una línea, estilo convencional", "items": [{"id": <id del item>, "status": "fixed" | "no_change" | "need_info", "reply": "respuesta corta para ese hilo"}]}
+  {"status": "fixed" (si has cambiado algo) | "no_change" | "need_info", "summary": "solo notas globales que NO estén ya en los replies (p. ej. tests a lanzar); vacío si no hay", "commit_message": "mensaje de commit de una línea, estilo convencional", "items": [{"id": <id del item>, "status": "fixed" | "no_change" | "need_info", "reply": "respuesta corta para ese hilo"}]}
 """
 
 ASK_RULES = """
@@ -351,11 +351,14 @@ def build_all_prompt(pr, items, comments, instruction, wt, base):
     head = HEADER.format(src=src, dst=dst, pr_id=pr["id"], title=pr["title"],
                          description=(pr.get("description") or "")[:4000], base_note=BASE_NOTE if base else "")
     out = ["Comentarios de revisión pendientes de la PR (cada <item> es un hilo; su id es el del comentario raíz):\n"]
-    for root in items:
+    for root, first_new in items:
         replies = [x for x in sorted(comments.values(), key=lambda x: x["id"])
                    if x["id"] != root["id"] and thread(comments, x)[0]["id"] == root["id"]]
-        out.append('<item id="%s">\n%s%s</item>\n' % (
-            root["id"], "".join(comment_block(x) for x in [root] + replies),
+        new_note = "" if first_new == root["id"] else \
+            "(Los comentarios anteriores a #%s ya se atendieron: son contexto. Lo pendiente es desde #%s.)\n" % (
+                first_new, first_new)
+        out.append('<item id="%s">\n%s%s%s</item>\n' % (
+            root["id"], new_note, "".join(comment_block(x) for x in [root] + replies),
             snippet(wt, dst, root["inline"]) if root.get("inline") else ""))
     body = "".join(out) + "\nInstrucción del autor de la PR:\n<instruction>\n%s\n</instruction>\n" % (
         instruction or "Atiende los comentarios pendientes, aplicando lo que tenga sentido.")
@@ -524,15 +527,34 @@ def previous_session(state, chain):
     return None
 
 
-def pending_items(state, comments, repo, pr_id):
-    """Hilos de revisión sin resolver ni atender por el bot."""
-    handled = set()
-    for k, e in state["comments"].items():
-        if e.get("repo") == repo and e.get("pr") == pr_id and int(k) in comments:
-            handled.add(thread(comments, comments[int(k)])[0]["id"])
-    return [x for x in sorted(comments.values(), key=lambda x: x["id"])
-            if not x.get("parent") and not x.get("resolution") and x["id"] not in handled
-            and not TRIGGER_RE.search((x.get("content") or {}).get("raw") or "")][:CFG.get("max_batch_items", 20)]
+BOT_PREFIXES = ("📝", "✅", "ℹ️", "❌", "💬", "❓")
+
+
+def pending_items(state, comments, repo, pr_id, cid):
+    """Hilos sin resolver con comentarios posteriores a la última intervención del bot: [(raíz, id del 1.º nuevo)]."""
+    entries = {int(k): e for k, e in state["comments"].items() if e.get("repo") == repo and e.get("pr") == pr_id}
+    bot = set()
+    for e in entries.values():
+        bot.update(x for x in [e.get("reply_id")] + e.get("item_reply_ids", []) if x)
+    for x in comments.values():  # respuestas del bot anteriores a guardar reply_id
+        if x.get("parent") and x["parent"]["id"] in entries and \
+                ((x.get("content") or {}).get("raw") or "").startswith(BOT_PREFIXES):
+            bot.add(x["id"])
+    threads = {}
+    for x in comments.values():
+        threads.setdefault(thread(comments, x)[0]["id"], []).append(x)
+    out = []
+    for root_id in sorted(threads):
+        root, xs = comments[root_id], threads[root_id]
+        if root.get("resolution"):
+            continue
+        handled = max([x["id"] for x in xs if x["id"] in entries or x["id"] in bot] +
+                      [k for k, e in entries.items() if k != int(cid) and root_id in (e.get("items") or [])], default=0)
+        new = [x["id"] for x in xs if x["id"] > handled and x["id"] not in bot and x["id"] not in entries
+               and not TRIGGER_RE.search((x.get("content") or {}).get("raw") or "")]
+        if new:
+            out.append((root, min(new)))
+    return out[:CFG.get("max_batch_items", 20)]
 
 
 ICONS = {"fixed": "✅", "no_change": "ℹ️", "need_info": "❓"}
@@ -541,7 +563,7 @@ ICONS = {"fixed": "✅", "no_change": "ℹ️", "need_info": "❓"}
 def items_text(items):
     if not items:
         return ""
-    return "\n\nHilos:\n" + "\n".join("- #%s %s %s" % (i.get("id"), ICONS.get(i.get("status"), "•"),
+    return "\n".join("- #%s %s %s" % (i.get("id"), ICONS.get(i.get("status"), "•"),
                                                        (i.get("reply") or "").replace("\n", " ")) for i in items)
 
 
@@ -610,13 +632,13 @@ def process(state, repo, pr, c, dry):
 
         items = []
         if batch:
-            items = pending_items(state, comments, repo, pr_id)
+            items = pending_items(state, comments, repo, pr_id, cid)
             if not items:
                 entry["status"] = "done"
                 if created:
                     remove_worktree(repo_path, wt, branch)
                 return answer("ℹ️ No hay comentarios de revisión pendientes (sin resolver ni atendidos).")
-            entry["items"] = [x["id"] for x in items]
+            entry["items"] = [r["id"] for r, _ in items]
             prompt = build_all_prompt(pr, items, comments, instruction, wt, base or bool(chained))
         else:
             prompt = build_prompt(pr, chain, instruction, wt, mode, base or bool(chained))
@@ -639,13 +661,15 @@ def process(state, repo, pr, c, dry):
             return answer("💬 %s" % (res.get("text") or res.get("summary")))
 
         res_items = res.get("items") or []
+        # en lote, los replies por hilo ya cuentan lo hecho: el summary solo añade notas
+        body = (items_text(res_items) + ("\n\n" + entry["summary"] if entry["summary"] else "")).strip() \
+            if batch else entry["summary"]
         changed = snapshot(wt) != before
         if res.get("status") != "fixed" or not changed:
             entry["status"] = "done"
             if created:
                 remove_worktree(repo_path, wt, branch)
-            return answer("ℹ️ Sin cambios (`%s`).\n\n%s%s" % (
-                res.get("status"), entry["summary"], items_text(res_items)))
+            return answer("ℹ️ Sin cambios (`%s`).\n\n%s" % (res.get("status"), body))
 
         msg = (res.get("commit_message") or "fix: cambios de revisión de PR").strip().splitlines()[0]
         entry["commit_message"] = msg
@@ -657,8 +681,7 @@ def process(state, repo, pr, c, dry):
 
         if mode == "review":
             # sin commit ni push: se entrega para revisarlo en la pestaña Commit del IDE
-            deliver_review(state, cid, entry, repo_path, wt, chained, base,
-                           extra + items_text(res_items))
+            deliver_review(state, cid, entry, repo_path, wt, chained, base, extra, body)
             return
 
         commit(wt, entry, cid)
@@ -669,15 +692,17 @@ def process(state, repo, pr, c, dry):
         save_state(state)
         remove_worktree(repo_path, wt, branch)
         link = "[`%s`](%s)" % (sha[:10], commit_url(repo, sha))
-        answer("✅ Aplicado en %s\n\n%s\n\nFicheros: %s%s%s" % (
-            link, entry["summary"], ", ".join("`%s`" % f for f in files), extra, items_text(res_items)))
+        answer("✅ Aplicado en %s\n\n%s\n\nFicheros: %s%s" % (
+            link, body, ", ".join("`%s`" % f for f in files), extra))
         resolve = CFG.get("resolve_threads", False)
         if batch:
-            ids = {x["id"] for x in items}
+            ids = {r["id"] for r, _ in items}
             for i in res_items:
                 if i.get("id") not in ids:
                     continue
-                reply(repo, pr_id, i["id"], "%s %s\n\n(%s)" % (ICONS.get(i.get("status"), "•"), i.get("reply") or "", link))
+                rid = reply(repo, pr_id, i["id"], "%s %s\n\n(%s)" % (ICONS.get(i.get("status"), "•"), i.get("reply") or "", link))
+                entry.setdefault("item_reply_ids", []).append(rid)
+                save_state(state)
                 if resolve and i.get("status") == "fixed":
                     resolve_thread(repo, pr_id, i["id"])
         elif resolve and len(chain) > 1 and not chain[0].get("resolution"):
@@ -753,7 +778,7 @@ def ide_unregister(repo_path, wt):
         edit_file(vcs, lambda s: s.replace(line, ""))
 
 
-def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra=""):
+def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra="", body=None):
     """Encadenado: los cambios ya están en el worktree de revisión de la PR. Si no, A: si la copia local está en la rama
     de la PR (limpia, o con los cambios usados como base), aplica ahí. B: worktree dentro del repo registrado en el IDE."""
     src = e["branch"]
@@ -805,7 +830,8 @@ def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra
     save_state(state)
     e["reply_id"] = reply(e["repo"], e["pr"], cid, "📝 Cambios aplicados **sin commit** en %s. Revísalos, retoca lo que "
                           "quieras y haz commit y push (o rollback para descartarlos).%s\n\nMensaje de commit sugerido: "
-                          "`%s`\n\n%s%s" % (where, note, e.get("commit_message", ""), e.get("summary", ""), extra))
+                          "`%s`\n\n%s%s" % (where, note, e.get("commit_message", ""),
+                                                 e.get("summary", "") if body is None else body, extra))
     save_state(state)
     notify("Fix listo para revisar", "%s PR#%s\n%s" % (e["repo"], e["pr"], e.get("commit_message", "")))
     log("Entregado c%s -> %s" % (cid, e["delivered"]))
