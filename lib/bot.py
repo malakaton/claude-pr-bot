@@ -479,7 +479,7 @@ def deliver_review(state, cid, e, repo_path, wt):
     blocker = local_blocker(repo_path, src, patch)
     if blocker is None:
         # no usar `git apply --intent-to-add`: en git < 2.44 machaca el índice
-        new_files = [f for f in sh(["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+        new_files = [f for f in sh(["git", "diff", "--cached", "--no-renames", "--name-only", "--diff-filter=A"],
                                    cwd=wt).stdout.split("\n") if f]
         sh(["git", "apply"], cwd=repo_path, input=patch)
         if new_files:
