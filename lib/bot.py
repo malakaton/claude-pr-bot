@@ -426,11 +426,6 @@ def run_claude(repo, wt, prompt, model="", read_only=False, resume=None):
     return res
 
 
-def footer(e):
-    cost = e.get("cost")
-    return "\n\n_%smodelo: %s_" % ("coste: %.2f $ · " % cost if cost is not None else "", e.get("model", "?"))
-
-
 # ---------------------------------------------------------------- git
 def snapshot(wt):
     """Estado de los cambios del worktree respecto a HEAD (incluye ficheros nuevos)."""
@@ -641,7 +636,7 @@ def process(state, repo, pr, c, dry):
             entry["status"] = "done"
             if created:
                 remove_worktree(repo_path, wt, branch)
-            return answer("💬 %s%s" % (res.get("text") or res.get("summary"), footer(entry)))
+            return answer("💬 %s" % (res.get("text") or res.get("summary")))
 
         res_items = res.get("items") or []
         changed = snapshot(wt) != before
@@ -649,8 +644,8 @@ def process(state, repo, pr, c, dry):
             entry["status"] = "done"
             if created:
                 remove_worktree(repo_path, wt, branch)
-            return answer("ℹ️ Sin cambios (`%s`).\n\n%s%s%s" % (
-                res.get("status"), entry["summary"], items_text(res_items), footer(entry)))
+            return answer("ℹ️ Sin cambios (`%s`).\n\n%s%s" % (
+                res.get("status"), entry["summary"], items_text(res_items)))
 
         msg = (res.get("commit_message") or "fix: cambios de revisión de PR").strip().splitlines()[0]
         entry["commit_message"] = msg
@@ -663,7 +658,7 @@ def process(state, repo, pr, c, dry):
         if mode == "review":
             # sin commit ni push: se entrega para revisarlo en la pestaña Commit del IDE
             deliver_review(state, cid, entry, repo_path, wt, chained, base,
-                           extra + items_text(res_items) + footer(entry))
+                           extra + items_text(res_items))
             return
 
         commit(wt, entry, cid)
@@ -674,9 +669,8 @@ def process(state, repo, pr, c, dry):
         save_state(state)
         remove_worktree(repo_path, wt, branch)
         link = "[`%s`](%s)" % (sha[:10], commit_url(repo, sha))
-        answer("✅ Aplicado en %s\n\n%s\n\nFicheros: %s%s%s%s" % (
-            link, entry["summary"], ", ".join("`%s`" % f for f in files), extra, items_text(res_items),
-            footer(entry)))
+        answer("✅ Aplicado en %s\n\n%s\n\nFicheros: %s%s%s" % (
+            link, entry["summary"], ", ".join("`%s`" % f for f in files), extra, items_text(res_items)))
         resolve = CFG.get("resolve_threads", False)
         if batch:
             ids = {x["id"] for x in items}

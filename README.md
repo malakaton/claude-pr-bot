@@ -113,8 +113,6 @@ Claude responde en el hilo con uno de estos mensajes:
 - 💬 respuesta a una pregunta (`--ask`)
 - ❌ error (también si una ejecución se interrumpió, p. ej. al apagar el equipo)
 
-Cada respuesta indica el coste y el modelo usado.
-
 > Si editas un comentario que ya se procesó, no se vuelve a ejecutar. Escribe un comentario nuevo o usa `pr-autofix forget <cid>`.
 
 ---
