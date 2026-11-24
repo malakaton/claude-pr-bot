@@ -96,15 +96,22 @@ Para actualizar: `/plugin update bitbucket-pr-autofix@bitbucket-pr-tools`. El ti
 | Que arregle lo que dice un revisor | **Responde** a su comentario con `@claude arréglalo` |
 | Que aplique el fix pero revisarlo yo antes del commit y push | `@claude --review …` ([ver modo revisión](#modo-revisión-claude---review)) |
 | Push automático (si tu modo por defecto es review) | `@claude --push …` |
+| Pedir otra vuelta sobre un fix | **Responde** en el mismo hilo: `@claude no, mejor con un enum` (retoma la sesión anterior de Claude) |
+| Atender todos los comentarios pendientes | `@claude --all` en un comentario general: resuelve en un solo commit los hilos sin resolver y responde en cada uno |
+| Una pregunta, sin tocar código | `@claude --ask ¿tiene razón el revisor?` |
+| Elegir modelo | `--opus`, `--sonnet`, `--haiku` o `--model <id>` |
 
-Si haces el comentario inline sobre una línea del diff, Claude recibe el fichero y la línea.
+Claude recibe el hilo completo de comentarios y, si es inline, el código alrededor de la línea comentada.
+
+Varios `@claude --review` seguidos en la misma PR se encadenan: el siguiente se aplica encima de los cambios aún sin commit del anterior (en tu copia local o en su worktree de revisión).
 
 Claude responde en el hilo con uno de estos mensajes:
 
 - ✅ aplicado, con el enlace al commit
 - 📝 aplicado sin commit, para que lo revises en tu IDE
 - ℹ️ sin cambios o le falta información
-- ❌ error
+- 💬 respuesta a una pregunta (`--ask`)
+- ❌ error (también si una ejecución se interrumpió, p. ej. al apagar el equipo)
 
 > Si editas un comentario que ya se procesó, no se vuelve a ejecutar. Escribe un comentario nuevo o usa `pr-autofix forget <cid>`.
 
@@ -147,8 +154,10 @@ Si quieres revisar siempre, elige el modo `review` en la configuración del plug
 4. Ejecuta `claude -p` (modo headless) con esta información:
    - el título y la descripción de la PR,
    - tu instrucción,
-   - el comentario al que respondes, si existe,
-   - el fichero y la línea, si el comentario es inline.
+   - el hilo completo al que respondes, si existe,
+   - el fichero, la línea y el código de alrededor, si el comentario es inline.
+
+   Si el hilo ya tuvo una ejecución anterior, la retoma con `--resume`.
 5. Si hay cambios, el script (no Claude) hace commit y push a la rama de la PR y responde en el hilo. Con `--review`, se para antes del commit y te entrega los cambios para revisarlos en el IDE.
 6. Guarda el comentario como procesado en `state.json` y borra el worktree.
 
@@ -184,6 +193,10 @@ Las opciones del plugin cubren lo habitual. Para lo demás, edita `config.json` 
 | `model` | Modelo a usar (vacío = el de tu configuración) | `""` |
 | `max_turns` / `timeout_sec` | Límites de cada ejecución de Claude | `30` / `900` |
 | `lookback_minutes` | Margen hacia atrás al buscar comentarios nuevos | `10` |
+| `resolve_threads` | Tras un push correcto, marca como resuelto el hilo del revisor (y los hilos arreglados con `--all`) | `false` |
+| `max_batch_items` | Máximo de hilos que atiende un `--all` | `20` |
+| `verify_cmd` | Comando de verificación por repo que ejecuta **el script** tras el fix, en el worktree. `{files}` se sustituye por los ficheros cambiados. Si falla en modo `auto`, no hace push y lo entrega como `review` | `{}` |
+| `verify_timeout_sec` | Límite del comando de verificación | `300` |
 | `worktrees_dir` | Carpeta de los worktrees. No puede estar dentro de `~/.claude`: Claude Code deniega ahí la escritura (si se configura así, el bot usa el valor por defecto) | `~/.cache/bitbucket-pr-autofix/worktrees` |
 | `allowed_tools` | Herramientas permitidas a Claude | lectura/edición + `git diff/log/status/show` |
 | `extra_allowed_tools` | Herramientas extra por repo, por ejemplo para ejecutar tests | `{}` |
@@ -194,6 +207,14 @@ Ejemplo para dejar que Claude ejecute los tests de un repo:
 ```json
 "extra_allowed_tools": {
   "my-service": ["Bash(make test:*)", "Bash(npm test:*)"]
+}
+```
+
+Ejemplo de verificación de sintaxis PHP con Docker (el worktree no tiene `vendor/`, así que mejor comprobaciones que no dependan de él):
+
+```json
+"verify_cmd": {
+  "my-php-service": "docker run --rm -v \"$PWD\":/app -w /app php:8.3-cli sh -c 'for f in \"$@\"; do case \"$f\" in *.php) php -l \"$f\" || exit 1;; esac; done' _ {files}"
 }
 ```
 
@@ -231,7 +252,7 @@ Se usa igual, con el comando `pr-autofix`.
 - **PRs desde fork**: no están soportadas.
 - **"No encuentro clon local"** o **"La carpeta de repos no existe"**: revisa la opción *Carpeta de repos* (`/plugin configure`), incluidas mayúsculas y minúsculas. Si es un repo concreto, clónalo ahí o añádelo en `repo_paths`.
 - **Error en el push** (non-fast-forward): el bot hace fetch, un rebase y reintenta una vez. Si vuelve a fallar, responde con el error.
-- **Un comentario se quedó en `running`** (por ejemplo, apagaste a mitad): ejecuta `pr-autofix forget <cid>` para que se reprocese.
+- **Una ejecución se cortó** (por ejemplo, apagaste a mitad): la siguiente pasada la marca como fallida y lo avisa en el hilo. Vuelve a pedirlo o usa `pr-autofix forget <cid>`.
 - **`pr-autofix` no existe tras instalar**: ejecuta `/reload-plugins` y vuelve a lanzar `setup`; el hook del plugin crea el comando en tu siguiente mensaje. Si aún no aparece, reinicia Claude Code. Comprueba también que `~/.local/bin` está en tu `PATH`.
 - **Coste**: cada ejecución consume uso de Claude (unos 0,10–0,50 $ en cambios pequeños). Consulta el acumulado con `/bitbucket-pr-autofix:status`.
 - **Rate limit de Bitbucket**: unas 1000 peticiones/hora por usuario. Con pocas PRs abiertas sobra margen.
