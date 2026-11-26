@@ -3,7 +3,7 @@
 
 Uso:
   bot.py run [--dry-run]        Una pasada de polling (lo que ejecuta el timer)
-  bot.py pending                Lista worktrees de revisión (--review) aún sin resolver
+  bot.py pending                Lista fixes de revisión (--review) sin resolver (worktrees y copia local)
   bot.py forget <cid>           Olvida un comentario (para reprocesarlo)
   bot.py slack-test             Te envía a ti mismo el aviso de Slack (prueba del conector)
   bot.py whoami                 Comprueba credenciales
@@ -926,11 +926,13 @@ def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra
             # solo el incremento sobre los cambios locales (que están en el índice del worktree)
             sh(["git", "add", "-A", "--intent-to-add"], cwd=wt)
             patch = sh(["git", "diff", "--binary"], cwd=wt).stdout
+            files = sh(["git", "diff", "--no-renames", "--name-only"], cwd=wt).stdout.splitlines()
             new_files = [f for f in sh(["git", "diff", "--no-renames", "--name-only", "--diff-filter=A"],
                                        cwd=wt).stdout.split("\n") if f]
         else:
             sh(["git", "add", "-A"], cwd=wt)
             patch = sh(["git", "diff", "--cached", "--binary"], cwd=wt).stdout
+            files = sh(["git", "diff", "--cached", "--no-renames", "--name-only"], cwd=wt).stdout.splitlines()
             # no usar `git apply --intent-to-add`: en git < 2.44 machaca el índice
             new_files = [f for f in sh(["git", "diff", "--cached", "--no-renames", "--name-only", "--diff-filter=A"],
                                        cwd=wt).stdout.split("\n") if f]
@@ -940,7 +942,9 @@ def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra
             if new_files:
                 sh(["git", "add", "--intent-to-add", "--"] + new_files, cwd=repo_path)
             remove_worktree(repo_path, wt, e["local_branch"])
-            e.update(status="done", worktree=None, delivered="local")
+            # sigue pendiente de revisión en la copia local hasta que esos ficheros queden sin cambios
+            e.update(status="review_local", worktree=None, delivered="local", repo_path=repo_path, files=files,
+                     base_sha=sh(["git", "rev-parse", "HEAD"], cwd=repo_path).stdout.strip())
             where = "tu copia local (`%s`, rama `%s`)%s" % (
                 repo_path, src, ", encima de tus cambios sin commit" if base else "")
         else:
@@ -971,11 +975,51 @@ def deliver_review(state, cid, e, repo_path, wt, chained=None, base=False, extra
     log("Entregado c%s -> %s" % (cid, e["delivered"]))
 
 
+def local_pending_files(e):
+    """Ficheros de una entrega en copia local que siguen con cambios sin commit (None si ya no está en la rama)."""
+    repo_path = e.get("repo_path") or local_repo(e["repo"])
+    head = sh(["git", "symbolic-ref", "--short", "-q", "HEAD"], cwd=repo_path, check=False).stdout.strip()
+    if head != e["branch"]:
+        return None
+    out = sh(["git", "status", "--porcelain", "--no-renames", "--"] + (e.get("files") or ["."]), cwd=repo_path).stdout
+    return [l[3:] for l in out.split("\n") if l.strip()]
+
+
+def cleanup_local_review(state, cid, e):
+    """Entrega en copia local: resuelta cuando sus ficheros ya no tienen cambios (commit+push o rollback)."""
+    dirty = local_pending_files(e)
+    if dirty:
+        return
+    repo_path = e.get("repo_path") or local_repo(e["repo"])
+    sha = None
+    if dirty is not None:  # sigue en la rama de la PR: mirar si hubo commit y si está subido
+        head = sh(["git", "rev-parse", "HEAD"], cwd=repo_path).stdout.strip()
+        if e.get("base_sha") and head != e["base_sha"]:
+            sh(["git", "fetch", "-q", "origin", e["branch"]], cwd=repo_path)
+            if sh(["git", "merge-base", "--is-ancestor", "HEAD", "origin/%s" % e["branch"]],
+                  cwd=repo_path, check=False).returncode:
+                return  # hay commits sin push
+            sha = head
+    e["status"] = "done"
+    if sha:
+        e["commit"] = sha
+    save_state(state)
+    log("Entrega local resuelta: c%s%s" % (cid, " (push)" if sha else ""))
+    if sha:
+        slack_notify(state, e, sha)
+
+
 def cleanup_review_worktrees(state):
     """Borra los worktrees de revisión ya resueltos: sin cambios y con todo subido (push) o descartado (rollback).
     Si se subió (HEAD avanzó respecto a la base), avisa por Slack a los revisores."""
     pushed = {}  # worktree -> sha subido o None (varias entradas encadenadas comparten worktree)
     for cid, e in state["comments"].items():
+        if e.get("status") == "review_local":
+            try:
+                cleanup_local_review(state, cid, e)
+            except Exception as ex:
+                log("ERROR revisando entrega local c%s: %s" % (cid, ex))
+            continue
         if e.get("status") != "review_worktree":
             continue
         try:
@@ -1039,10 +1083,19 @@ def cmd_run(dry):
 
 def cmd_pending():
     for cid, e in load_state()["comments"].items():
+        summary = (e.get("summary") or "").replace("\n", " ")[:200]
         if e.get("status") == "review_worktree":
             print("c%s  %s PR#%s (%s)\n    %s\n    %s\n    %s\n" % (
-                cid, e["repo"], e["pr"], e["branch"], e["pr_url"], e["worktree"],
-                (e.get("summary") or "").replace("\n", " ")[:200]))
+                cid, e["repo"], e["pr"], e["branch"], e["pr_url"], e["worktree"], summary))
+        elif e.get("status") == "review_local":
+            try:
+                dirty = local_pending_files(e)
+            except Exception:
+                dirty = e.get("files")
+            if dirty:  # aún sin commit (si no, el siguiente poll la marca resuelta)
+                print("c%s  %s PR#%s (%s)  [copia local]\n    %s\n    %s  ficheros: %s\n    %s\n" % (
+                    cid, e["repo"], e["pr"], e["branch"], e["pr_url"],
+                    e.get("repo_path") or local_repo(e["repo"]), ", ".join(dirty), summary))
 
 
 def cmd_slack_test():

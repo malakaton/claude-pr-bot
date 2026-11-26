@@ -148,7 +148,7 @@ Después:
 - **Descartar**: haz Rollback de los cambios.
 - **Con ayuda**: `/bitbucket-pr-autofix:review` te enseña el diff, te da su opinión y aplica los retoques que le pidas.
 
-En el siguiente poll, el bot detecta los worktrees resueltos (sin cambios y con todo subido o descartado), los borra y quita su registro del IDE. `pr-autofix pending` lista los que siguen abiertos.
+En el siguiente poll, el bot detecta los worktrees resueltos (sin cambios y con todo subido o descartado), los borra y quita su registro del IDE. Las entregas en la copia local se dan por resueltas cuando sus ficheros quedan sin cambios (y, si hubo commit, subido). `pr-autofix pending` lista ambos mientras sigan abiertos.
 
 Si quieres revisar siempre, elige el modo `review` en la configuración del plugin. Cuando quieras push directo en un caso concreto, usa `@claude --push …`.
 
@@ -254,7 +254,7 @@ pr-autofix run --dry-run       # ver qué detectaría, sin ejecutar nada
 pr-autofix run                 # forzar una pasada ahora
 pr-autofix whoami              # comprobar credenciales
 pr-autofix slack-test          # te envía a ti mismo el aviso de Slack
-pr-autofix pending            # worktrees de revisión (--review) aún sin resolver
+pr-autofix pending            # fixes de revisión (--review) aún sin resolver: worktrees y copia local
 pr-autofix forget <cid>        # olvidar un comentario para reprocesarlo
 journalctl --user -u bitbucket-pr-autofix -f   # logs de systemd
 ```
