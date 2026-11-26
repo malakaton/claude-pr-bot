@@ -560,11 +560,19 @@ def pending_items(state, comments, repo, pr_id, cid):
 ICONS = {"fixed": "✅", "no_change": "ℹ️", "need_info": "❓"}
 
 
-def items_text(items):
-    if not items:
-        return ""
-    return "\n".join("- #%s %s %s" % (i.get("id"), ICONS.get(i.get("status"), "•"),
-                                                       (i.get("reply") or "").replace("\n", " ")) for i in items)
+def reply_items(state, entry, items, res_items, suffix=""):
+    """En lote, cada respuesta va en el hilo de su revisor, no en el comentario general. Devuelve los ids respondidos."""
+    ids = {r["id"] for r, _ in items}
+    done = []
+    for i in res_items:
+        if i.get("id") not in ids:
+            continue
+        rid = reply(entry["repo"], entry["pr"], i["id"],
+                    "%s %s%s" % (ICONS.get(i.get("status"), "•"), i.get("reply") or "", suffix))
+        entry.setdefault("item_reply_ids", []).append(rid)
+        save_state(state)
+        done.append(i)
+    return done
 
 
 # ---------------------------------------------------------------- procesado
@@ -661,15 +669,17 @@ def process(state, repo, pr, c, dry):
             return answer("💬 %s" % (res.get("text") or res.get("summary")))
 
         res_items = res.get("items") or []
-        # en lote, los replies por hilo ya cuentan lo hecho: el summary solo añade notas
-        body = (items_text(res_items) + ("\n\n" + entry["summary"] if entry["summary"] else "")).strip() \
-            if batch else entry["summary"]
+        # en lote, los replies por hilo ya cuentan lo hecho: el comentario general solo lleva las notas globales
+        body = ("Respuestas en cada hilo.\n\n" + entry["summary"]).strip() if batch else entry["summary"]
         changed = snapshot(wt) != before
         if res.get("status") != "fixed" or not changed:
             entry["status"] = "done"
             if created:
                 remove_worktree(repo_path, wt, branch)
-            return answer("ℹ️ Sin cambios (`%s`).\n\n%s" % (res.get("status"), body))
+            answer("ℹ️ Sin cambios (`%s`).\n\n%s" % (res.get("status"), body))
+            if batch:
+                reply_items(state, entry, items, res_items)
+            return
 
         msg = (res.get("commit_message") or "fix: cambios de revisión de PR").strip().splitlines()[0]
         entry["commit_message"] = msg
@@ -682,6 +692,8 @@ def process(state, repo, pr, c, dry):
         if mode == "review":
             # sin commit ni push: se entrega para revisarlo en el IDE
             deliver_review(state, cid, entry, repo_path, wt, chained, base, extra, body)
+            if batch:
+                reply_items(state, entry, items, res_items, "\n\n(cambios sin commit, pendientes de revisión)")
             return
 
         commit(wt, entry, cid)
@@ -696,13 +708,7 @@ def process(state, repo, pr, c, dry):
             link, body, ", ".join("`%s`" % f for f in files), extra))
         resolve = CFG.get("resolve_threads", False)
         if batch:
-            ids = {r["id"] for r, _ in items}
-            for i in res_items:
-                if i.get("id") not in ids:
-                    continue
-                rid = reply(repo, pr_id, i["id"], "%s %s\n\n(%s)" % (ICONS.get(i.get("status"), "•"), i.get("reply") or "", link))
-                entry.setdefault("item_reply_ids", []).append(rid)
-                save_state(state)
+            for i in reply_items(state, entry, items, res_items, "\n\n(%s)" % link):
                 if resolve and i.get("status") == "fixed":
                     resolve_thread(repo, pr_id, i["id"])
         elif resolve and len(chain) > 1 and not chain[0].get("resolution"):
