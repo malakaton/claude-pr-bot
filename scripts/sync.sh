@@ -36,7 +36,7 @@ sync_files() {
   printf 'ROOT=%q\nDATA=%q\n' "$ROOT" "$DATA" > "$PTR_DIR/paths"
   cat > "$WRAPPER.tmp" <<'EOF'
 #!/usr/bin/env bash
-# Generado por el plugin bitbucket-pr-autofix. Uso: pr-autofix <run|pending|forget|whoami|status|install-units|remove-units|migrate>
+# Generado por el plugin bitbucket-pr-autofix. Uso: pr-autofix <run|pending|forget|whoami|slack-test|status|install-units|remove-units|migrate>
 set -euo pipefail
 . "$HOME/.config/bitbucket-pr-autofix/paths"
 export CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PLUGIN_DATA="$DATA" PR_AUTOFIX_HOME="$DATA"
@@ -53,7 +53,7 @@ except Exception: print("state: (vacío)"); sys.exit()
 c = s.get("comments", {})
 print("último poll:", s.get("last_poll"))
 print("comentarios:", dict(collections.Counter(e.get("status") for e in c.values())))
-print("coste total: %.2f $" % sum((e.get("cost") or 0) for e in c.values()))
+print("coste total: %.2f $" % sum((e.get("cost") or 0) + (e.get("slack_cost") or 0) for e in c.values()))
 PY
     echo "--- últimas líneas de bot.log"; tail -n 15 "$DATA/bot.log" 2>/dev/null || true ;;
   *) exec python3 "$DATA/bot.py" "$@" ;;

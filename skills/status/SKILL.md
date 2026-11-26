@@ -12,4 +12,5 @@ description: Muestra el estado de bitbucket-pr-autofix (timer, último poll, com
    - el último poll,
    - el número de comentarios por estado y el coste total,
    - los errores recientes del log (con su causa probable),
+   - si en el log aparece `AVISO Slack`, que los avisos de Slack no se están enviando y cómo arreglarlo (conectar Slack en claude.ai o desactivar `slack_notify`),
    - los worktrees de revisión sin resolver (sugiere revisarlos en el IDE (pestaña Commit en JetBrains, Source Control en VS Code) o con `/bitbucket-pr-autofix:review`).

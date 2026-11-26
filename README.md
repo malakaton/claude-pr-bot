@@ -204,6 +204,10 @@ Las opciones del plugin cubren lo habitual. Para lo demás, edita `config.json` 
 | `max_batch_items` | Máximo de hilos que atiende un `--all` | `20` |
 | `verify_cmd` | Comando de verificación por repo que ejecuta **el script** tras el fix, en el worktree. `{files}` se sustituye por los ficheros cambiados. Si falla en modo `auto`, no hace push y lo entrega como `review` | `{}` |
 | `verify_timeout_sec` | Límite del comando de verificación | `300` |
+| `slack_notify` | Tras subir un fix (push del bot, o tu push desde un worktree de `--review`), avisa por DM de Slack a los revisores cuyos comentarios se atendieron. Usa el conector de Slack de claude.ai ([ver abajo](#avisos-por-slack)) | `false` |
+| `slack_users` | Mapa manual Bitbucket → Slack para quien no se encuentre por nombre: `{ "<account_id, nickname o nombre visible>": "<ID de Slack, U…>" }` | `{}` |
+| `slack_connector` | Nombre del conector de Slack tal como aparece en `claude mcp list` | `claude.ai Slack` |
+| `slack_model` | Modelo del `claude -p` que envía los avisos | `haiku` |
 | `worktrees_dir` | Carpeta de los worktrees. No puede estar dentro de `~/.claude`: Claude Code deniega ahí la escritura (si se configura así, el bot usa el valor por defecto) | `~/.cache/bitbucket-pr-autofix/worktrees` |
 | `allowed_tools` | Herramientas permitidas a Claude | lectura/edición + `git diff/log/status/show` |
 | `extra_allowed_tools` | Herramientas extra por repo, por ejemplo para ejecutar tests | `{}` |
@@ -227,6 +231,20 @@ Ejemplo de verificación de sintaxis PHP con Docker (el worktree no tiene `vendo
 
 ---
 
+### Avisos por Slack
+
+Con `"slack_notify": true`, cuando los cambios de un comentario de revisión llegan a la rama de la PR, el bot manda a cada revisor afectado (nunca a ti) un DM breve con el enlace a su comentario y al commit:
+
+- **Modo auto / `--push`**: justo después del push del bot.
+- **`--review`**: cuando subes tú los cambios desde el worktree de revisión (se detecta en la siguiente pasada). Si se aplicaron directamente en tu copia local, no se detecta y no se avisa.
+- **`--all`**: solo a los autores de los hilos que Claude marcó como arreglados.
+
+No necesita token ni app de Slack: el envío lo hace un `claude -p` (por defecto con `haiku`, unos céntimos por aviso) que solo puede usar `slack_search_users` y `slack_send_message` del conector de Slack de claude.ai. El mensaje sale **en tu nombre**. Requisitos: tener el conector de Slack conectado en claude.ai con la misma cuenta con la que usas Claude Code.
+
+Si activas `slack_notify` sin tener el conector conectado, el bot no gasta tokens: lo comprueba antes con `claude mcp list`, escribe `AVISO Slack` en el log (aparece en `/bitbucket-pr-autofix:status`) y muestra una notificación de escritorio como mucho una vez al día. Los fixes siguen funcionando con normalidad. `/bitbucket-pr-autofix:setup` también lo comprueba.
+
+El revisor se busca en Slack por su nombre visible de Bitbucket, y solo se le escribe si hay una única coincidencia exacta. Si no aparece, añádelo a `slack_users`. Los IDs encontrados se guardan en `state.json`. Comprueba que funciona con `pr-autofix slack-test` (te envía el aviso a ti mismo).
+
 ## Comando `pr-autofix`
 
 ```bash
@@ -234,6 +252,7 @@ pr-autofix status              # timer, último poll, coste, log reciente
 pr-autofix run --dry-run       # ver qué detectaría, sin ejecutar nada
 pr-autofix run                 # forzar una pasada ahora
 pr-autofix whoami              # comprobar credenciales
+pr-autofix slack-test          # te envía a ti mismo el aviso de Slack
 pr-autofix pending            # worktrees de revisión (--review) aún sin resolver
 pr-autofix forget <cid>        # olvidar un comentario para reprocesarlo
 journalctl --user -u bitbucket-pr-autofix -f   # logs de systemd
