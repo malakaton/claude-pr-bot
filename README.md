@@ -55,6 +55,7 @@ Al instalarlo, Claude Code te pide:
 | API token de Bitbucket | el token creado arriba (se guarda en el keyring del sistema, no pasa por el chat) |
 | Carpeta de repos | donde tienes clonados los repos (por defecto `~/code`). Escríbela exactamente igual, mayúsculas incluidas: `~/MiEmpresa` y `~/Miempresa` son carpetas distintas |
 | Modo por defecto | `auto` (commit + push directo) o `review` (revisas tú antes) |
+| Avisos por Slack | `activado` para avisar por DM a los revisores cuando sus cambios se suben ([ver abajo](#avisos-por-slack)). Por defecto `desactivado` |
 
 Después, en la misma sesión (no hace falta reiniciar):
 
@@ -204,7 +205,7 @@ Las opciones del plugin cubren lo habitual. Para lo demás, edita `config.json` 
 | `max_batch_items` | Máximo de hilos que atiende un `--all` | `20` |
 | `verify_cmd` | Comando de verificación por repo que ejecuta **el script** tras el fix, en el worktree. `{files}` se sustituye por los ficheros cambiados. Si falla en modo `auto`, no hace push y lo entrega como `review` | `{}` |
 | `verify_timeout_sec` | Límite del comando de verificación | `300` |
-| `slack_notify` | Tras subir un fix (push del bot, o tu push desde un worktree de `--review`), avisa por DM de Slack a los revisores cuyos comentarios se atendieron. Usa el conector de Slack de claude.ai ([ver abajo](#avisos-por-slack)) | `false` |
+| `slack_notify` | (lo fija la opción del plugin *Avisos por Slack*) Tras subir un fix (push del bot, o tu push desde un worktree de `--review`), avisa por DM de Slack a los revisores cuyos comentarios se atendieron. Usa el conector de Slack de claude.ai ([ver abajo](#avisos-por-slack)) | `false` |
 | `slack_users` | Mapa manual Bitbucket → Slack para quien no se encuentre por nombre: `{ "<account_id, nickname o nombre visible>": "<ID de Slack, U…>" }` | `{}` |
 | `slack_connector` | Nombre del conector de Slack tal como aparece en `claude mcp list` | `claude.ai Slack` |
 | `slack_model` | Modelo del `claude -p` que envía los avisos | `haiku` |
@@ -233,7 +234,7 @@ Ejemplo de verificación de sintaxis PHP con Docker (el worktree no tiene `vendo
 
 ### Avisos por Slack
 
-Con `"slack_notify": true`, cuando los cambios de un comentario de revisión llegan a la rama de la PR, el bot manda a cada revisor afectado (nunca a ti) un DM breve con el enlace a su comentario y al commit:
+Con la opción **Avisos por Slack** en `activado` (o `"slack_notify": true`), cuando los cambios de un comentario de revisión llegan a la rama de la PR, el bot manda a cada revisor afectado (nunca a ti) un DM breve con el enlace a su comentario y al commit:
 
 - **Modo auto / `--push`**: justo después del push del bot.
 - **`--review`**: cuando subes tú los cambios desde el worktree de revisión (se detecta en la siguiente pasada). Si se aplicaron directamente en tu copia local, no se detecta y no se avisa.

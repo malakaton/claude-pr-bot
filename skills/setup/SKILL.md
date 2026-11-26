@@ -41,8 +41,8 @@ Sigue estos pasos en orden, ejecutando los comandos con Bash. Informa brevemente
 7c. **Avisos por Slack** (opcional): lee `slack_notify` del `config.json` de datos.
    - Si es `true`, ejecuta `claude mcp list` y busca la línea `claude.ai Slack:` (o la de `slack_connector` si está configurado).
      - `✔ Connected` → di que los avisos funcionarán y sugiere `pr-autofix slack-test` (le envía un DM de prueba a él mismo; solo lánzalo si acepta).
-     - `Needs authentication` o no aparece → explica que los avisos no se enviarán hasta que conecte Slack en claude.ai (Settings → Connectors → Slack) con la misma cuenta de Claude Code. Ofrece también desactivar `slack_notify`. No bloquees el setup.
-   - Si es `false`, menciona en una línea que existe (avisar por Slack a los revisores cuando sus cambios se suben) y que requiere el conector de Slack de claude.ai. No lo actives sin que lo pida.
+     - `Needs authentication` o no aparece → explica que los avisos no se enviarán hasta que conecte Slack en claude.ai (Settings → Connectors → Slack) con la misma cuenta de Claude Code. Ofrece también desactivarlo (opción *Avisos por Slack* en `/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools`). No bloquees el setup.
+   - Si es `false`, menciona en una línea que existe (avisar por Slack a los revisores cuando sus cambios se suben) y que requiere el conector de Slack de claude.ai. Se activa con `/plugin configure bitbucket-pr-autofix@bitbucket-pr-tools` → *Avisos por Slack*. No lo actives sin que lo pida.
 
 8. **Timer**: `pr-autofix install-units`.
 

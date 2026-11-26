@@ -1,6 +1,6 @@
 {
   "name": "bitbucket-pr-autofix",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Escribe @claude en un comentario de tu PR de Bitbucket y Claude aplica el fix, hace commit y push (o con --review lo deja sin commit para que lo revises en tu IDE).",
   "author": {
     "name": "Manel Bermúdez"
@@ -48,6 +48,16 @@
         "review"
       ],
       "default": "auto"
+    },
+    "slack_notify": {
+      "type": "string",
+      "title": "Avisos por Slack",
+      "description": "Avisa por DM de Slack a los revisores cuando los cambios de sus comentarios se suben a la PR. Requiere el conector de Slack de claude.ai.",
+      "options": [
+        "desactivado",
+        "activado"
+      ],
+      "default": "desactivado"
     }
   }
 }
