@@ -14,6 +14,9 @@
   "max_batch_items": 20,
   "verify_cmd": {},
   "verify_timeout_sec": 300,
+  "slack_notify": false,
+  "slack_users": {},
+  "slack_model": "haiku",
   "worktrees_dir": "",
   "co_author": "Claude <noreply@anthropic.com>",
   "allowed_tools": [
